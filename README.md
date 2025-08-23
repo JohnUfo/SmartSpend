@@ -1,10 +1,5 @@
 # SmartSpend - Intelligent Expense Tracker
 
-![iOS](https://img.shields.io/badge/iOS-18.5+-blue.svg)
-![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)
-![SwiftUI](https://img.shields.io/badge/SwiftUI-5.0-green.svg)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
-
 SmartSpend is a comprehensive iOS expense tracking application built with SwiftUI that combines intelligent expense management with advanced analytics, smart learning capabilities, and seamless data import functionality.
 
 ## 🌟 Key Features
@@ -42,7 +37,6 @@ SmartSpend is a comprehensive iOS expense tracking application built with SwiftU
 - **Multiple Export Formats**: Export your data in CSV, JSON, or PDF formats
 - **Selective Export**: Choose specific data types and date ranges for export
 - **Data Recovery**: 30-day recovery system for deleted expenses with countdown timer
-- **Monthly Salary System**: Set different salaries for each month to accurately track your budget
 
 ### 🎨 **User Experience**
 - **iOS Design Compliance**: Follows Apple's Human Interface Guidelines
@@ -111,7 +105,7 @@ SmartSpend supports importing expenses from external sources:
 ### Installation
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/SmartSpend.git
+git clone https://github.com/JohnUfo/SmartSpend.git
 cd SmartSpend
 ```
 
@@ -208,39 +202,6 @@ The learning system uses a frequency-based approach:
 - **Error Handling**: Detailed error reporting for failed imports
 - **Category Mapping**: Automatic mapping of common category variations
 - **Thread Safety**: Proper main thread handling for UI updates
-
-## 🤝 Contributing
-
-We welcome contributions to SmartSpend! Please follow these guidelines:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Code Style
-- Follow Swift API Design Guidelines
-- Use SwiftUI best practices
-- Maintain iOS design consistency
-- Add appropriate documentation
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Apple's Human Interface Guidelines for design inspiration
-- SwiftUI community for best practices and patterns
-- iOS development community for continuous learning resources
-
-## 📞 Support
-
-If you encounter any issues or have questions:
-1. Check the [Issues](https://github.com/yourusername/SmartSpend/issues) page
-2. Create a new issue with detailed information
-3. Contact the development team
 
 ---
 
