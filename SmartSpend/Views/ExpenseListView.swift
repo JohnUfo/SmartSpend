@@ -81,8 +81,6 @@ struct ExpenseListView: View {
                     }
                     .background(Color(.systemGroupedBackground))
                 }
-                
-                Spacer(minLength: 0)
             }
             .navigationTitle("Expenses")
             .navigationBarTitleDisplayMode(.large)
@@ -99,9 +97,6 @@ struct ExpenseListView: View {
             }
             .sheet(isPresented: $showingAddExpense) {
                 AddExpenseView()
-            }
-            .onTapGesture {
-                DeleteButtonManager.shared.setActiveExpense(nil)
             }
         }
     }

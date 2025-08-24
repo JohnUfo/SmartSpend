@@ -76,25 +76,6 @@ struct ExpenseRowView: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
             .offset(x: deleteManager.activeExpenseId == expense.id ? -76 : 0)
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: deleteManager.activeExpenseId == expense.id)
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        // Only allow swipe left to reveal delete
-                        if value.translation.width < -30 {
-                            deleteManager.setActiveExpense(expense.id)
-                        } else if value.translation.width > 30 && deleteManager.activeExpenseId == expense.id {
-                            deleteManager.setActiveExpense(nil)
-                        }
-                    }
-                    .onEnded { value in
-                        // Snap behavior based on swipe distance
-                        if value.translation.width < -50 {
-                            deleteManager.setActiveExpense(expense.id)
-                        } else if value.translation.width > 30 {
-                            deleteManager.setActiveExpense(nil)
-                        }
-                    }
-            )
             .onTapGesture {
                 if deleteManager.activeExpenseId == expense.id {
                     // If delete button is showing, hide it
@@ -105,6 +86,37 @@ struct ExpenseRowView: View {
                 }
             }
         }
+        .simultaneousGesture(
+            DragGesture()
+                .onChanged { value in
+                    // Only respond to horizontal swipes, ignore vertical scrolls
+                    let horizontalMovement = abs(value.translation.width)
+                    let verticalMovement = abs(value.translation.height)
+                    
+                    // Only process if horizontal movement is greater than vertical
+                    if horizontalMovement > verticalMovement {
+                        if value.translation.width < -30 {
+                            deleteManager.setActiveExpense(expense.id)
+                        } else if value.translation.width > 30 && deleteManager.activeExpenseId == expense.id {
+                            deleteManager.setActiveExpense(nil)
+                        }
+                    }
+                }
+                .onEnded { value in
+                    // Only process if horizontal movement is greater than vertical
+                    let horizontalMovement = abs(value.translation.width)
+                    let verticalMovement = abs(value.translation.height)
+                    
+                    if horizontalMovement > verticalMovement {
+                        // Snap behavior based on swipe distance
+                        if value.translation.width < -50 {
+                            deleteManager.setActiveExpense(expense.id)
+                        } else if value.translation.width > 30 {
+                            deleteManager.setActiveExpense(nil)
+                        }
+                    }
+                }
+        )
         .sheet(isPresented: $showingEditExpense) {
             EditExpenseView(expense: expense)
         }
