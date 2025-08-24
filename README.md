@@ -1,6 +1,6 @@
-# SmartSpend - Intelligent Expense Tracker
+# SmartSpend v2.0 - Intelligent Expense Tracker
 
-SmartSpend is a comprehensive iOS expense tracking application built with SwiftUI that combines intelligent expense management with advanced analytics, smart learning capabilities, and seamless data import functionality.
+SmartSpend is a comprehensive iOS expense tracking application built with SwiftUI that combines intelligent expense management with advanced analytics, smart learning capabilities, and seamless data import functionality. Version 2.0 introduces enhanced time-based filtering, improved UI/UX, and powerful budget insights.
 
 ## 🌟 Key Features
 
@@ -14,16 +14,18 @@ SmartSpend is a comprehensive iOS expense tracking application built with SwiftU
 
 ### 📊 **Advanced Analytics**
 - **Comprehensive Dashboard**: Real-time overview of your spending patterns and budget status
-- **Time-based Analysis**: Filter expenses by week, month, or custom date ranges
-- **Category Insights**: Detailed breakdown of spending by category with trend analysis
-- **Monthly Comparisons**: Compare current month spending with previous periods
-- **Spending Trends**: Visual charts and graphs for spending analysis
+- **Dynamic Time-based Analysis**: Filter expenses by All Time, This Month, Last Month, or Custom Month
+- **Interactive Budget Overview**: Pressable budget card with detailed insights and time period selection
+- **Category Breakdown**: Dynamic spending breakdown that updates based on selected time period
+- **Spending Trends**: Daily and weekly average spending indicators with trend analysis
+- **Enhanced Charts**: Improved spending trends visualization with better number formatting (6M instead of 6.0E6)
 
 ### 🎯 **Budget & Goal Management**
 - **Category Budgets**: Set spending limits for individual expense categories
 - **Smart Budget Suggestions**: AI-powered budget recommendations based on spending history
-- **Spending Goals**: Create and track savings goals with progress visualization
+- **Spending Goals**: Create and track savings goals with progress visualization and completion alerts
 - **Budget Alerts**: Automatic notifications when approaching spending limits
+- **Immediate Updates**: Budget suggestions and resets update instantly without requiring page navigation
 
 ### 🔄 **Recurring Expenses**
 - **Automated Tracking**: Set up recurring expenses for subscriptions, bills, and regular payments
@@ -39,11 +41,39 @@ SmartSpend is a comprehensive iOS expense tracking application built with SwiftU
 - **Data Recovery**: 30-day recovery system for deleted expenses with countdown timer
 
 ### 🎨 **User Experience**
-- **iOS Design Compliance**: Follows Apple's Human Interface Guidelines
+- **iOS Design Compliance**: Follows Apple's Human Interface Guidelines with enhanced iOS 17+ compatibility
 - **Intuitive Navigation**: Clean 5-tab interface for easy access to all features
-- **Custom Gestures**: Swipe-to-delete functionality with visual feedback
+- **Enhanced Gestures**: Improved swipe-to-delete functionality with better scrolling support on physical devices
 - **Dark Mode Ready**: Optimized for both light and dark appearances
 - **Smart Suggestions**: Auto-complete expense titles and suggest amounts/categories
+- **Search Functionality**: Enhanced expense search with keyboard dismissal and clear button
+- **Time Period Filtering**: iOS-style time period selection with beautiful grid layout
+
+## 🆕 What's New in v2.0
+
+### 🎯 **Enhanced Budget Management**
+- **Interactive Budget Overview**: Tap the budget card to open a detailed popup with comprehensive insights
+- **Time Period Selection**: Choose from All Time, This Month, Last Month, or Custom Month to filter all data
+- **Dynamic Data Updates**: All dashboard components update in real-time based on selected time period
+- **Shared State Management**: Consistent time period selection across all views
+
+### 📊 **Improved Analytics**
+- **Enhanced Spending Trends**: Better chart visualization with improved number formatting
+- **Category Breakdown**: Dynamic category spending that updates based on time period selection
+- **Daily/Weekly Averages**: Quick insights into spending patterns with trend indicators
+- **Removed Redundant Features**: Streamlined analytics by removing Quarter/Year timeframes and Budget Alerts section
+
+### 🎨 **UI/UX Improvements**
+- **iOS 17+ Compatibility**: Enhanced gesture handling and improved scrolling on physical devices
+- **Better Search Experience**: Keyboard auto-dismissal and clear search button
+- **Improved Expense Management**: Enhanced swipe-to-delete with better gesture recognition
+- **Material Design**: Enhanced visual depth with improved shadows and backgrounds
+
+### 🔧 **Technical Enhancements**
+- **Shared DataManager State**: Centralized time period management for consistent data filtering
+- **Performance Optimizations**: Improved data filtering and calculation methods
+- **Better Error Handling**: Enhanced compilation error fixes and code structure
+- **Equatable Conformance**: Added proper protocol conformance for better data management
 
 ## 🧠 Smart Learning System
 
@@ -124,6 +154,12 @@ open SmartSpend.xcodeproj
 3. Choose the date (defaults to today)
 4. Tap "Save" to record the expense
 
+### Using the Interactive Budget Overview
+1. Tap the "Budget Overview" card on the dashboard
+2. Select your desired time period (All Time, This Month, Last Month, Custom Month)
+3. View detailed budget insights including progress, spent/remaining amounts, and category breakdown
+4. All dashboard data will update automatically based on your selection
+
 ### Importing Data from CSV
 1. Go to Settings → Import Data
 2. Tap "Select CSV File" and choose your file
@@ -143,7 +179,8 @@ open SmartSpend.xcodeproj
 1. Go to Settings → Budget & Goals
 2. Tap "Add Budget" to create category-specific budgets
 3. Set your spending limits and enable budget tracking
-4. Use "Suggest Budgets" for AI-powered recommendations
+4. Use "Suggest Budgets" for AI-powered recommendations (updates immediately)
+5. Use "Reset All Budgets" to clear all budgets (updates immediately)
 
 ### Creating Recurring Expenses
 1. Navigate to the "Recurring" tab
@@ -184,10 +221,11 @@ SmartSpend/
 ### Data Models
 - **Expense**: Core expense data with category, amount, and date
 - **RecurringExpense**: Automated recurring expense definitions
-- **CategoryBudget**: Budget limits for expense categories
-- **SpendingGoal**: Savings goals with progress tracking
+- **CategoryBudget**: Budget limits for expense categories (with Equatable conformance)
+- **SpendingGoal**: Savings goals with progress tracking and completion alerts
 - **LearnedPattern**: Smart learning data for suggestions
 - **MonthlySalary**: Month-specific salary tracking
+- **TimePeriod**: Enum for time-based filtering (All Time, This Month, Last Month, Custom Month)
 
 ### Smart Learning Algorithm
 The learning system uses a frequency-based approach:
@@ -203,6 +241,14 @@ The learning system uses a frequency-based approach:
 - **Category Mapping**: Automatic mapping of common category variations
 - **Thread Safety**: Proper main thread handling for UI updates
 
+### Time Period Filtering System
+- **Shared State Management**: Centralized time period selection across all views
+- **Dynamic Data Filtering**: Real-time expense filtering based on selected time period
+- **Salary Integration**: Appropriate salary calculation for each time period
+- **Performance Optimized**: Efficient filtering algorithms for large datasets
+
 ---
 
-**SmartSpend** - Making expense tracking intelligent and effortless! 🎯💰
+**SmartSpend v2.0** - Making expense tracking intelligent and effortless! 🎯💰
+
+*Enhanced with dynamic time-based filtering, improved UI/UX, and powerful budget insights.*

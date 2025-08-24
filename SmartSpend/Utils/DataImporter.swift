@@ -146,10 +146,6 @@ class DataImporter: ObservableObject {
             }
             
             return .success(importedCount: importedCount, skippedCount: skippedCount, errors: errors)
-            
-        } catch {
-            print("❌ Import failed: \(error)")
-            return .failure(error: error.localizedDescription)
         }
     }
     
@@ -520,6 +516,4 @@ class DataImporter: ObservableObject {
             return ExpenseCategory.allCases.first { $0.rawValue.lowercased() == normalized }
         }
     }
-    
-
 }

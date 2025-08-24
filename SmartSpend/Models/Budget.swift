@@ -1,6 +1,6 @@
 import Foundation
 
-struct CategoryBudget: Identifiable, Codable {
+struct CategoryBudget: Identifiable, Codable, Equatable {
     let id: UUID
     let category: ExpenseCategory
     var amount: Double

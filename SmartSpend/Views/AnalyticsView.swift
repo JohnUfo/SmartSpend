@@ -9,19 +9,12 @@ struct AnalyticsView: View {
     enum TimeFrame: String, CaseIterable {
         case week = "Week"
         case month = "Month"
-        case quarter = "Quarter"
-        case year = "Year"
     }
     
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: 20) {
-                    // Budget Alerts
-                    if !dataManager.checkBudgetAlerts().isEmpty {
-                        budgetAlertsSection
-                    }
-                    
                     // Time Frame Picker
                     timeFramePicker
                     
@@ -87,22 +80,87 @@ struct AnalyticsView: View {
             
             if #available(iOS 16.0, *) {
                 Chart(getSpendingTrends()) { trend in
+                    // Area fill for better visual impact
+                    AreaMark(
+                        x: .value("Date", trend.date),
+                        y: .value("Amount", trend.amount)
+                    )
+                    .foregroundStyle(.linearGradient(
+                        colors: [.blue.opacity(0.4), .blue.opacity(0.1)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ))
+                    
+                    // Main line for trend
                     LineMark(
                         x: .value("Date", trend.date),
                         y: .value("Amount", trend.amount)
                     )
                     .foregroundStyle(.blue)
-                    .lineStyle(StrokeStyle(lineWidth: 3))
+                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                     
-                    AreaMark(
+                    // Data points for better visibility
+                    PointMark(
                         x: .value("Date", trend.date),
                         y: .value("Amount", trend.amount)
                     )
-                    .foregroundStyle(.blue.opacity(0.1))
+                    .foregroundStyle(.white)
+                    .symbolSize(6)
+                    
+                    // Outer ring for data points
+                    PointMark(
+                        x: .value("Date", trend.date),
+                        y: .value("Amount", trend.amount)
+                    )
+                    .foregroundStyle(.blue)
+                    .symbolSize(8)
                 }
                 .frame(height: 200)
+                .chartOverlay { proxy in
+                    GeometryReader { geometry in
+                        Rectangle()
+                            .fill(.clear)
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture()
+                                    .onChanged { value in
+                                        guard let plotFrame = proxy.plotFrame else { return }
+                        let x = value.location.x - geometry[plotFrame].origin.x
+                                        guard let date = proxy.value(atX: x) as Date? else { return }
+                                        
+                                        // Find the closest data point
+                                        let trends = getSpendingTrends()
+                                        let closest = trends.min(by: { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) })
+                                        
+                                        if let closest = closest {
+                                            // You could add a tooltip here if needed
+                                            print("Date: \(formatDateLabel(closest.date)), Amount: \(formatCompactCurrency(closest.amount, currency: dataManager.user.currency))")
+                                        }
+                                    }
+                            )
+                    }
+                }
                 .chartYAxis {
-                    AxisMarks(position: .leading)
+                    AxisMarks(position: .leading) { value in
+                        if let amount = value.as(Double.self) {
+                            AxisValueLabel {
+                                Text(formatCompactCurrency(amount, currency: dataManager.user.currency))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks { value in
+                        if let date = value.as(Date.self) {
+                            AxisValueLabel {
+                                Text(formatDateLabel(date))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
             } else {
                 // Fallback for iOS < 16
@@ -182,38 +240,7 @@ struct AnalyticsView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
     
-    private var budgetAlertsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .font(.title3)
-                
-                Text("Budget Alerts")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-            }
-            
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(dataManager.checkBudgetAlerts(), id: \.self) { alert in
-                    HStack {
-                        Image(systemName: "circle.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                        
-                        Text(alert)
-                            .font(.subheadline)
-                            .foregroundStyle(.primary)
-                        
-                        Spacer()
-                    }
-                }
-            }
-        }
-        .padding(.vertical, 16)
-        .padding(.horizontal, 16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-    }
+
     
     private var monthlyComparisonSection: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -360,10 +387,37 @@ struct AnalyticsView: View {
     
     // MARK: - Helper Methods
     
+    private func formatCompactCurrency(_ amount: Double, currency: Currency) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 1
+        
+        if amount >= 1_000_000 {
+            return "\(formatter.string(from: NSNumber(value: amount / 1_000_000)) ?? "0")M"
+        } else if amount >= 1_000 {
+            return "\(formatter.string(from: NSNumber(value: amount / 1_000)) ?? "0")K"
+        } else {
+            return formatter.string(from: NSNumber(value: amount)) ?? "0"
+        }
+    }
+    
+    private func formatDateLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        
+        switch selectedTimeframe {
+        case .week:
+            formatter.dateFormat = "E" // Mon, Tue, etc.
+        case .month:
+            formatter.dateFormat = "d" // Day number
+        }
+        
+        return formatter.string(from: date)
+    }
+    
     private func getSpendingTrends() -> [SpendingTrend] {
         let calendar = Calendar.current
         let now = Date()
-        let daysBack = selectedTimeframe == .week ? 7 : selectedTimeframe == .month ? 30 : selectedTimeframe == .quarter ? 90 : 365
+        let daysBack = selectedTimeframe == .week ? 7 : 30
         
         var trends: [SpendingTrend] = []
         

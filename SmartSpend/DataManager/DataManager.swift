@@ -1,6 +1,22 @@
 import Foundation
 import SwiftUI
 
+enum TimePeriod: String, CaseIterable {
+    case all = "All Time"
+    case currentMonth = "This Month"
+    case lastMonth = "Last Month"
+    case customMonth = "Custom Month"
+    
+    var icon: String {
+        switch self {
+        case .all: return "infinity"
+        case .currentMonth: return "calendar"
+        case .lastMonth: return "calendar.badge.clock"
+        case .customMonth: return "calendar.badge.ellipsis"
+        }
+    }
+}
+
 class DataManager: ObservableObject {
     static let shared = DataManager()
     
@@ -14,6 +30,7 @@ class DataManager: ObservableObject {
     @Published var monthlySalaries: [MonthlySalary] = []
     @Published var recurringExpenses: [RecurringExpense] = []
     @Published var learnedPatterns: [LearnedPattern] = []
+    @Published var selectedTimePeriod: TimePeriod = .currentMonth
     
     private init() {
         self.user = User(currency: .usd)
@@ -708,6 +725,83 @@ class DataManager: ObservableObject {
     func updateCurrency(_ currency: Currency) {
         user.currency = currency
         saveData()
+    }
+    
+    // MARK: - Time Period Filtering
+    
+    func getFilteredExpenses() -> [Expense] {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        switch selectedTimePeriod {
+        case .all:
+            return expenses
+        case .currentMonth:
+            return expenses.filter { calendar.isDate($0.date, equalTo: now, toGranularity: .month) }
+        case .lastMonth:
+            guard let lastMonth = calendar.date(byAdding: .month, value: -1, to: now) else { return [] }
+            return expenses.filter { calendar.isDate($0.date, equalTo: lastMonth, toGranularity: .month) }
+        case .customMonth:
+            return expenses.filter { calendar.isDate($0.date, equalTo: now, toGranularity: .month) }
+        }
+    }
+    
+    func getTotalExpensesForPeriod() -> Double {
+        let filteredExpenses = getFilteredExpenses()
+        return filteredExpenses.reduce(0) { $0 + $1.amount }
+    }
+    
+    func getRemainingBudgetForPeriod() -> Double {
+        let salary = getCurrentSalaryForPeriod()
+        return max(0, salary - getTotalExpensesForPeriod())
+    }
+    
+    func getCurrentSalaryForPeriod() -> Double {
+        switch selectedTimePeriod {
+        case .all:
+            return monthlySalaries.reduce(0) { $0 + $1.amount }
+        case .currentMonth:
+            return getCurrentMonthSalary()
+        case .lastMonth:
+            let calendar = Calendar.current
+            let lastMonth = calendar.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+            let year = calendar.component(.year, from: lastMonth)
+            let month = calendar.component(.month, from: lastMonth)
+            return getSalaryForMonth(month: month, year: year)
+        case .customMonth:
+            return getCurrentMonthSalary() // Default to current month
+        }
+    }
+    
+    func getCategoryBreakdownForPeriod() -> [(ExpenseCategory, Double)] {
+        let filteredExpenses = getFilteredExpenses()
+        var categoryTotals: [ExpenseCategory: Double] = [:]
+        
+        for expense in filteredExpenses {
+            categoryTotals[expense.category, default: 0] += expense.amount
+        }
+        
+        return categoryTotals.sorted { $0.value > $1.value }
+    }
+    
+    func getDailyAverageForPeriod() -> Double {
+        let filteredExpenses = getFilteredExpenses()
+        let total = filteredExpenses.reduce(0) { $0 + $1.amount }
+        let days = max(1, Double(filteredExpenses.count))
+        return total / days
+    }
+    
+    func getWeeklyAverageForPeriod() -> Double {
+        let filteredExpenses = getFilteredExpenses()
+        let total = filteredExpenses.reduce(0) { $0 + $1.amount }
+        let weeks = max(1, Double(filteredExpenses.count) / 7.0)
+        return total / weeks
+    }
+    
+    func getProgressPercentageForPeriod() -> Double {
+        let salary = getCurrentSalaryForPeriod()
+        guard salary > 0 else { return 0 }
+        return min(getTotalExpensesForPeriod() / salary, 1.0)
     }
 }
 

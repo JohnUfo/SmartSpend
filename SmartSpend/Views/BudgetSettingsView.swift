@@ -6,18 +6,8 @@ struct BudgetSettingsView: View {
     @State private var showingAddGoal = false
     
     private var canSuggestBudgets: Bool {
-        let calendar = Calendar.current
-        let threeMonthsAgo = calendar.date(byAdding: .month, value: -3, to: Date()) ?? Date()
-        
-        // Check if we have at least 3 months of data
-        let hasThreeMonthsData = dataManager.expenses.contains { expense in
-            expense.date < threeMonthsAgo
-        }
-        
-        // Check if we have at least 100 expenses
-        let hasEnoughExpenses = dataManager.expenses.count >= 100
-        
-        return hasThreeMonthsData && hasEnoughExpenses
+        // Allow suggestions if we have at least 10 expenses
+        return dataManager.expenses.count >= 10
     }
     
     var body: some View {
@@ -107,20 +97,33 @@ struct BudgetSettingsView: View {
             dataManager.categoryBudgets[i].amount = 0
             dataManager.categoryBudgets[i].isEnabled = false
         }
+        dataManager.saveBudgets()
+        
+        // Force UI refresh by triggering objectWillChange
+        dataManager.objectWillChange.send()
     }
     
     private func suggestBudgets() {
         let calendar = Calendar.current
         let threeMonthsAgo = calendar.date(byAdding: .month, value: -3, to: Date()) ?? Date()
         
+        // Use last 3 months of data, or all available data if less than 3 months
+        let availableExpenses = dataManager.expenses.filter { expense in
+            expense.date >= threeMonthsAgo
+        }
+        
+        // If we don't have 3 months of data, use all available data
+        let expensesToUse = availableExpenses.isEmpty ? dataManager.expenses : availableExpenses
+        let monthsOfData = max(1, Double(expensesToUse.count) / 30.0) // Rough estimate
+        
         for category in ExpenseCategory.allCases {
-            let recentExpenses = dataManager.expenses.filter { expense in
-                expense.category == category && expense.date >= threeMonthsAgo
+            let categoryExpenses = expensesToUse.filter { expense in
+                expense.category == category
             }
             
-            if !recentExpenses.isEmpty {
-                let totalSpending = recentExpenses.reduce(0) { $0 + $1.amount }
-                let avgMonthlySpending = totalSpending / 3.0
+            if !categoryExpenses.isEmpty {
+                let totalSpending = categoryExpenses.reduce(0) { $0 + $1.amount }
+                let avgMonthlySpending = totalSpending / monthsOfData
                 let suggestedBudget = avgMonthlySpending * 1.1 // 10% buffer
                 
                 if let index = dataManager.categoryBudgets.firstIndex(where: { $0.category == category }) {
@@ -134,8 +137,11 @@ struct BudgetSettingsView: View {
             }
         }
         
-        // Save the suggested budgets
+        // Save the suggested budgets immediately and trigger UI update
         dataManager.saveBudgets()
+        
+        // Force UI refresh by triggering objectWillChange
+        dataManager.objectWillChange.send()
     }
 }
 
@@ -181,13 +187,13 @@ struct CategoryBudgetSettingRow: View {
             }
         }
         .onAppear {
-            if let budget = budget {
-                budgetAmount = budget.amount > 0 ? String(format: "%.2f", budget.amount) : ""
-                isEnabled = budget.isEnabled
-            }
+            updateLocalState()
         }
         .onChange(of: isEnabled) { _, newValue in
             updateBudget()
+        }
+        .onChange(of: dataManager.categoryBudgets) { _, _ in
+            updateLocalState()
         }
     }
     
@@ -202,11 +208,22 @@ struct CategoryBudgetSettingRow: View {
             dataManager.categoryBudgets.append(newBudget)
         }
     }
+    
+    private func updateLocalState() {
+        if let budget = budget {
+            budgetAmount = budget.amount > 0 ? String(format: "%.2f", budget.amount) : ""
+            isEnabled = budget.isEnabled
+        } else {
+            budgetAmount = ""
+            isEnabled = false
+        }
+    }
 }
 
 struct SpendingGoalRow: View {
     let goal: SpendingGoal
     @ObservedObject private var dataManager = DataManager.shared
+    @State private var showingCompletionAlert = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -255,6 +272,16 @@ struct SpendingGoalRow: View {
                 .scaleEffect(x: 1, y: 1.5, anchor: .center)
         }
         .padding(.vertical, 4)
+        .onChange(of: goal.progress) { _, newProgress in
+            if newProgress >= 1.0 && !goal.isCompleted {
+                showingCompletionAlert = true
+            }
+        }
+        .alert("Goal Completed! 🎉", isPresented: $showingCompletionAlert) {
+            Button("OK") { }
+        } message: {
+            Text("Congratulations! You've reached your goal: \(goal.title)")
+        }
     }
 }
 
