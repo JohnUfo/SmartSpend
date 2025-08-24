@@ -50,8 +50,8 @@ git push -u origin main
 - Update the following fields:
   - `CFBundleDisplayName`: SmartSpend
   - `CFBundleIdentifier`: com.yourusername.SmartSpend
-  - `CFBundleVersion`: 1.0.0
-  - `CFBundleShortVersionString`: 1.0.0
+  - `CFBundleVersion`: 2.0.0
+  - `CFBundleShortVersionString`: 2.0.0
 
 ### 3. App Store Connect Setup
 1. Go to [App Store Connect](https://appstoreconnect.apple.com)
@@ -130,6 +130,18 @@ xcodebuild archive -project SmartSpend.xcodeproj -scheme SmartSpend -archivePath
 - [ ] IPA exported and validated
 
 ## 🎯 Release Notes
+
+### Version 2.0.0
+- Enhanced budget management with interactive overview
+- Dynamic time-based filtering (All Time, This Month, Last Month, Custom Month)
+- Improved UI/UX with iOS 17+ compatibility
+- Enhanced gesture handling and scrolling on physical devices
+- Better search functionality with keyboard dismissal
+- Streamlined analytics with improved chart visualization
+- Immediate budget updates without page navigation
+- Spending goal completion alerts
+- Enhanced material design with improved visual depth
+- Performance optimizations and better error handling
 
 ### Version 1.0.0
 - Initial release of SmartSpend

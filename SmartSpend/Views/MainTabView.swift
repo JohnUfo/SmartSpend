@@ -210,7 +210,7 @@ struct SettingsView: View {
                 
                 Section("About") {
                     HStack {
-                        Label("SmartSpend v1.0", systemImage: "info.circle.fill")
+                        Label("SmartSpend v2.0", systemImage: "info.circle.fill")
                             .foregroundStyle(Color(.systemBlue))
                         Spacer()
                     }

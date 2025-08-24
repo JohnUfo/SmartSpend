@@ -206,7 +206,7 @@ class DataExporter: ObservableObject {
     ) -> URL? {
         var exportData: [String: Any] = [:]
         exportData["exportDate"] = DateFormatter.exportDate.string(from: Date())
-        exportData["appVersion"] = "1.0"
+        exportData["appVersion"] = "2.0"
         
         if dataTypes.contains(.expenses) || dataTypes.contains(.all) {
             let filteredExpenses = filterExpensesByDate(dataManager.expenses, dateRange: dateRange)
