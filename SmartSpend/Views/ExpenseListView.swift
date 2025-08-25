@@ -6,8 +6,11 @@ struct ExpenseListView: View {
     @State private var selectedCategory: ExpenseCategory?
     @State private var selectedTimePeriod: TimePeriod = .all
     @State private var selectedCustomMonth: Date = Date()
+    @State private var selectedStartDate: Date = Date()
+    @State private var selectedEndDate: Date = Date()
     @State private var showingMonthPicker = false
     @State private var showingAddExpense = false
+    @State private var isDateRangeMode = true
     
     enum TimePeriod: String, CaseIterable {
         case all = "All"
@@ -22,9 +25,14 @@ struct ExpenseListView: View {
             case .today: return "calendar.badge.exclamationmark"
             case .weekly: return "calendar.badge.clock"
             case .monthly: return "calendar.badge.plus"
-            case .customMonth: return "calendar.badge.ellipsis"
+            case .customMonth: return "calendar.badge.clock"
             }
         }
+    }
+    
+    enum CustomDateMode: String, CaseIterable {
+        case singleDate = "Single Date"
+        case dateRange = "Date Range"
     }
     
     var filteredExpenses: [Expense] {
@@ -47,9 +55,11 @@ struct ExpenseListView: View {
                 return expense.date >= startOfMonth
             case .customMonth:
                 let calendar = Calendar.current
-                let startOfSelectedMonth = calendar.dateInterval(of: .month, for: selectedCustomMonth)?.start ?? Date()
-                let endOfSelectedMonth = calendar.dateInterval(of: .month, for: selectedCustomMonth)?.end ?? Date()
-                return expense.date >= startOfSelectedMonth && expense.date < endOfSelectedMonth
+                if isDateRangeMode {
+                    return expense.date >= selectedStartDate && expense.date <= selectedEndDate
+                } else {
+                    return calendar.isDate(expense.date, inSameDayAs: selectedStartDate)
+                }
             }
         }
         
@@ -139,26 +149,40 @@ struct ExpenseListView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
                 .background(.regularMaterial)
                 
                 // Expenses List
                 if filteredExpenses.isEmpty {
-                    EmptyStateView(
-                        searchText: searchText,
-                        hasFilter: selectedCategory != nil
-                    )
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            ForEach(filteredExpenses) { expense in
-                                ExpenseRowView(expense: expense)
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 16)
+                    VStack(spacing: 16) {
+                        Spacer()
+                        
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 48))
+                            .foregroundStyle(.secondary)
+                        
+                        Text("No expenses found")
+                            .font(.title2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                        
+                        Text("Try adjusting your filters or add a new expense")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                        
+                        Spacer()
                     }
-                    .background(Color(.systemGroupedBackground))
+                    .padding(.horizontal, 32)
+                } else {
+                    List {
+                        ForEach(filteredExpenses) { expense in
+                            ExpenseRowView(expense: expense)
+                        }
+                        .onDelete(perform: deleteExpense)
+                    }
+                    .listStyle(.plain)
                 }
             }
             .navigationTitle("Expenses")
@@ -178,67 +202,183 @@ struct ExpenseListView: View {
                 AddExpenseView()
             }
             .sheet(isPresented: $showingMonthPicker) {
-                MonthPickerView(selectedDate: $selectedCustomMonth, selectedTimePeriod: $selectedTimePeriod)
-                    .presentationDetents([.height(280)])
+                CalendarPickerView(
+                    selectedStartDate: $selectedStartDate,
+                    selectedEndDate: $selectedEndDate,
+                    isDateRangeMode: $isDateRangeMode,
+                    selectedTimePeriod: $selectedTimePeriod
+                )
+                .presentationDetents([.fraction(0.85)])
             }
             .onTapGesture {
                 hideKeyboard()
             }
         }
     }
+    
+    private func deleteExpense(at offsets: IndexSet) {
+        for index in offsets {
+            let expense = filteredExpenses[index]
+            dataManager.deleteExpense(expense)
+        }
+    }
+    
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
 }
 
-struct MonthPickerView: View {
-    @Binding var selectedDate: Date
+struct CalendarPickerView: View {
+    @Binding var selectedStartDate: Date
+    @Binding var selectedEndDate: Date
+    @Binding var isDateRangeMode: Bool
     @Binding var selectedTimePeriod: ExpenseListView.TimePeriod
     @Environment(\.dismiss) private var dismiss
     
-    @State private var selectedMonth: Int
-    @State private var selectedYear: Int
+    @State private var currentMonth: Date = Date()
+    @State private var selectionStep: SelectionStep = .firstDate
+    @State private var tempStartDate: Date = Date()
+    @State private var tempEndDate: Date = Date()
     
-    init(selectedDate: Binding<Date>, selectedTimePeriod: Binding<ExpenseListView.TimePeriod>) {
-        self._selectedDate = selectedDate
-        self._selectedTimePeriod = selectedTimePeriod
-        
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.month, .year], from: selectedDate.wrappedValue)
-        self._selectedMonth = State(initialValue: components.month ?? 1)
-        self._selectedYear = State(initialValue: components.year ?? calendar.component(.year, from: Date()))
+    enum SelectionStep {
+        case firstDate
+        case secondDate
     }
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                HStack(spacing: 0) {
-                    // Month Picker
-                    Picker("Month", selection: $selectedMonth) {
-                        ForEach(1...12, id: \.self) { month in
-                            Text(monthName(month))
-                                .tag(month)
-                        }
-                    }
-                    .pickerStyle(.wheel)
-                    .frame(maxWidth: .infinity)
+            VStack(spacing: 0) {
+                // Header with Date Range Toggle
+                VStack(spacing: 20) {
+
                     
-                    // Year Picker
-                    Picker("Year", selection: $selectedYear) {
-                        ForEach(2020...2030, id: \.self) { year in
-                            Text(String(year))
-                                .tag(year)
+                                    // Instructions
+                Text(instructionText)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                
+                // From and To Buttons
+                HStack(spacing: 16) {
+                    Button(action: {
+                        selectionStep = .firstDate
+                    }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "calendar.badge.plus")
+                                .font(.system(size: 14, weight: .medium))
+                            Text("From")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(selectionStep == .firstDate ? .white : .blue)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(selectionStep == .firstDate ? Color.blue : Color.blue.opacity(0.1))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: {
+                        selectionStep = .secondDate
+                    }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "calendar.badge.clock")
+                                .font(.system(size: 14, weight: .medium))
+                            Text("To")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundColor(selectionStep == .secondDate ? .white : .blue)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(selectionStep == .secondDate ? Color.blue : Color.blue.opacity(0.1))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                }
+                .padding(.top, 16)
+                .padding(.bottom, 24)
+                .background(Color(.systemGroupedBackground))
+                
+                // Calendar View
+                VStack(spacing: 20) {
+                    // Month Navigation
+                    HStack {
+                        Button(action: previousMonth) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(Color(.systemBlue))
+                                .frame(width: 36, height: 36)
+                                .background(Color(.systemGray6))
+                                .clipShape(Circle())
+                        }
+                        
+                        Spacer()
+                        
+                        Text(monthYearString(from: currentMonth))
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(Color(.label))
+                        
+                        Spacer()
+                        
+                        Button(action: nextMonth) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(Color(.systemBlue))
+                                .frame(width: 36, height: 36)
+                                .background(Color(.systemGray6))
+                                .clipShape(Circle())
                         }
                     }
-                    .pickerStyle(.wheel)
-                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 20)
+                    
+                    // Calendar Grid
+                    VStack(spacing: 12) {
+                        // Day headers
+                        HStack(spacing: 0) {
+                            ForEach(Array(["S", "M", "T", "W", "T", "F", "S"].enumerated()), id: \.offset) { index, day in
+                                Text(day)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(Color(.secondaryLabel))
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        
+                        // Calendar days
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 4) {
+                            ForEach(Array(calendarDays.enumerated()), id: \.offset) { index, date in
+                                if let date = date {
+                                    CalendarDayView(
+                                        date: date,
+                                        isSelected: isDateSelected(date),
+                                        isInRange: isDateInRange(date),
+                                        isCurrentMonth: Calendar.current.isDate(date, equalTo: currentMonth, toGranularity: .month),
+                                        isDateRangeMode: true
+                                    ) {
+                                        selectDate(date)
+                                    }
+                                } else {
+                                    Color.clear
+                                        .frame(height: 40)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
                 }
-                .onChange(of: selectedMonth) { _, _ in
-                    updateSelectedDate()
-                }
-                .onChange(of: selectedYear) { _, _ in
-                    updateSelectedDate()
-                }
+                
+
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                
+                Spacer()
             }
-            .padding(.horizontal)
-            .navigationTitle("Select Month")
+            .navigationTitle("Select Date")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -249,32 +389,149 @@ struct MonthPickerView: View {
                 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
+                        // Apply the selected date range when Done is pressed
+                        selectedStartDate = tempStartDate
+                        selectedEndDate = tempEndDate
                         selectedTimePeriod = .customMonth
                         dismiss()
                     }
                     .fontWeight(.semibold)
                 }
             }
+            .onAppear {
+                currentMonth = selectedStartDate
+                tempStartDate = selectedStartDate
+                tempEndDate = selectedEndDate
+            }
         }
     }
     
-    private func monthName(_ month: Int) -> String {
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = Locale.current
-        return dateFormatter.monthSymbols[month - 1]
+    private var calendarDays: [Date?] {
+        let calendar = Calendar.current
+        let startOfMonth = calendar.dateInterval(of: .month, for: currentMonth)?.start ?? currentMonth
+        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: startOfMonth)?.start ?? startOfMonth
+        
+        var days: [Date?] = []
+        let endDate = calendar.date(byAdding: .day, value: 41, to: startOfWeek) ?? startOfWeek
+        
+        var currentDate = startOfWeek
+        while currentDate < endDate {
+            if calendar.isDate(currentDate, equalTo: currentMonth, toGranularity: .month) {
+                days.append(currentDate)
+            } else {
+                days.append(nil)
+            }
+            currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
+        }
+        
+        return days
     }
     
-    private func updateSelectedDate() {
-        var components = DateComponents()
-        components.year = selectedYear
-        components.month = selectedMonth
-        components.day = 1
-        
-        if let newDate = Calendar.current.date(from: components) {
-            selectedDate = newDate
+    private func previousMonth() {
+        currentMonth = Calendar.current.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
+    }
+    
+    private func nextMonth() {
+        currentMonth = Calendar.current.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
+    }
+    
+    private func selectDate(_ date: Date) {
+        switch selectionStep {
+        case .firstDate:
+            tempStartDate = date
+            // Don't auto-switch to second date when using buttons
+            // User can manually switch using the "To" button
+        case .secondDate:
+            tempEndDate = date
+            // Don't auto-apply the range - wait for user to press Done
+            // Stay in second date mode until user manually changes it
+        }
+    }
+    
+
+    
+    private func isDateSelected(_ date: Date) -> Bool {
+        switch selectionStep {
+        case .firstDate:
+            return Calendar.current.isDate(date, inSameDayAs: tempStartDate)
+        case .secondDate:
+            return Calendar.current.isDate(date, inSameDayAs: tempEndDate)
+        }
+    }
+    
+    private func isDateInRange(_ date: Date) -> Bool {
+        // Don't show range highlighting - only show selected dates
+        return false
+    }
+    
+    private func monthYearString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.string(from: date)
+    }
+    
+    private var instructionText: String {
+        switch selectionStep {
+        case .firstDate:
+            return "Tap 'From' button and select start date, then tap 'To' button and select end date"
+        case .secondDate:
+            return "Select the end date to complete your range"
+        }
+    }
+    
+    private func dateString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM dd, yyyy"
+        return formatter.string(from: date)
+    }
+}
+
+struct CalendarDayView: View {
+    let date: Date
+    let isSelected: Bool
+    let isInRange: Bool
+    let isCurrentMonth: Bool
+    let isDateRangeMode: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text("\(Calendar.current.component(.day, from: date))")
+                .font(.system(size: 17, weight: isSelected ? .semibold : .regular))
+                .frame(width: 40, height: 40)
+                .background(
+                    Circle()
+                        .fill(backgroundColor)
+                )
+                .foregroundColor(foregroundColor)
+                .scaleEffect(isSelected ? 1.1 : 1.0)
+                .animation(.easeInOut(duration: 0.2), value: isSelected)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private var backgroundColor: Color {
+        if isSelected {
+            return Color(.systemBlue)
+        } else if isInRange {
+            return Color(.systemBlue).opacity(0.15)
+        } else {
+            return .clear
+        }
+    }
+    
+    private var foregroundColor: Color {
+        if isSelected {
+            return .white
+        } else if isCurrentMonth {
+            return Color(.label)
+        } else {
+            return Color(.tertiaryLabel)
         }
     }
 }
+
+
 
 struct TimePeriodFilterButton: View {
     let timePeriod: ExpenseListView.TimePeriod

@@ -1,6 +1,6 @@
-# SmartSpend v2.0 - Intelligent Expense Tracker
+# SmartSpend v2.1 - Intelligent Expense Tracker
 
-SmartSpend is a comprehensive iOS expense tracking application built with SwiftUI that combines intelligent expense management with advanced analytics, smart learning capabilities, and seamless data import functionality. Version 2.0 introduces enhanced time-based filtering, improved UI/UX, and powerful budget insights.
+SmartSpend is a comprehensive iOS expense tracking application built with SwiftUI that combines intelligent expense management with advanced analytics, smart learning capabilities, and seamless data import functionality. Version 2.1 introduces an enhanced calendar-based date selection system, improved iOS design, and powerful budget insights.
 
 ## 🌟 Key Features
 
@@ -11,6 +11,15 @@ SmartSpend is a comprehensive iOS expense tracking application built with SwiftU
 - **Monthly Salary System**: Set different salaries for each month to accurately track your budget
 - **Custom Categories**: 8 predefined expense categories with visual icons and color coding
 - **Editable Expenses**: Swipe-to-edit and delete expenses with 30-day soft-delete recovery
+
+### 📅 **Advanced Calendar & Date Selection**
+- **Interactive Calendar Picker**: Beautiful iOS-style calendar interface for custom date range selection
+- **From/To Date Selection**: Intuitive two-step date selection with "From" and "To" buttons
+- **Independent Date Selection**: Each mode shows only its own selected date for clear visual feedback
+- **Month Navigation**: Swipe through months with smooth navigation controls
+- **Instant Date Selection**: Responsive tap-to-select functionality without lag or gesture conflicts
+- **85% Modal Presentation**: Optimized calendar view with perfect height for easy interaction
+- **Smart Date Range Application**: Date ranges are applied only when "Done" is pressed for user control
 
 ### 📊 **Advanced Analytics**
 - **Comprehensive Dashboard**: Real-time overview of your spending patterns and budget status
@@ -48,6 +57,35 @@ SmartSpend is a comprehensive iOS expense tracking application built with SwiftU
 - **Smart Suggestions**: Auto-complete expense titles and suggest amounts/categories
 - **Search Functionality**: Enhanced expense search with keyboard dismissal and clear button
 - **Time Period Filtering**: iOS-style time period selection with beautiful grid layout
+
+## 🆕 What's New in v2.1
+
+### 📅 **Revolutionary Calendar Picker**
+- **Interactive Calendar Interface**: Beautiful, native iOS-style calendar for custom date selection
+- **Two-Step Date Selection**: Clear "From" and "To" button workflow for intuitive date range selection
+- **Independent Visual Feedback**: Each selection mode shows only its own selected date for clarity
+- **Month Navigation**: Smooth month-to-month navigation with intuitive controls
+- **Optimized Modal Presentation**: 85% height modal for perfect balance of visibility and usability
+- **User-Controlled Application**: Date ranges are applied only when user presses "Done" for full control
+
+### 🎨 **Enhanced iOS Design**
+- **Native iOS Styling**: Complete redesign following Apple's Human Interface Guidelines
+- **System Colors**: Proper use of system colors for light/dark mode compatibility
+- **Modern Typography**: iOS-standard font weights and sizes throughout the interface
+- **Improved Visual Hierarchy**: Better spacing, shadows, and visual depth
+- **Responsive Interactions**: Instant feedback and smooth animations
+
+### 🔧 **Performance Improvements**
+- **Eliminated Gesture Conflicts**: Removed complex gesture handling that caused selection lag
+- **Simplified Date Selection**: Streamlined tap-to-select functionality for instant response
+- **Optimized State Management**: Cleaner state handling for better performance
+- **Reduced Memory Usage**: More efficient data structures and algorithms
+
+### 🐛 **Bug Fixes & Stability**
+- **Fixed System Symbol Issues**: Resolved missing system symbols and icon conflicts
+- **Eliminated ForEach ID Conflicts**: Fixed duplicate ID issues in calendar grid and day headers
+- **Improved Error Handling**: Better compilation error resolution and code structure
+- **Enhanced Data Consistency**: More reliable date range filtering and expense management
 
 ## 🆕 What's New in v2.0
 
@@ -160,6 +198,15 @@ open SmartSpend.xcodeproj
 3. View detailed budget insights including progress, spent/remaining amounts, and category breakdown
 4. All dashboard data will update automatically based on your selection
 
+### Using the Enhanced Calendar Picker
+1. Select "Custom Month" from the time period filter
+2. The calendar picker will open with a beautiful iOS-style interface
+3. **Select Start Date**: Tap the "From" button (highlighted in blue) and select your start date
+4. **Select End Date**: Tap the "To" button and select your end date
+5. **Visual Feedback**: Each mode shows only its own selected date for clear visual feedback
+6. **Apply Range**: Press "Done" to apply the date range and filter your expenses
+7. **Month Navigation**: Use the arrow buttons to navigate between months if needed
+
 ### Importing Data from CSV
 1. Go to Settings → Import Data
 2. Tap "Select CSV File" and choose your file
@@ -247,8 +294,16 @@ The learning system uses a frequency-based approach:
 - **Salary Integration**: Appropriate salary calculation for each time period
 - **Performance Optimized**: Efficient filtering algorithms for large datasets
 
+### Calendar Picker System
+- **Interactive Calendar Interface**: Native iOS-style calendar with month navigation
+- **Two-Step Selection Process**: Independent "From" and "To" date selection modes
+- **Visual State Management**: Clear visual feedback for each selection mode
+- **Modal Presentation**: 85% height modal with optimal user experience
+- **Gesture-Free Interaction**: Simple tap-to-select without complex gesture conflicts
+- **Date Range Validation**: Smart handling of date order and range application
+
 ---
 
-**SmartSpend v2.0** - Making expense tracking intelligent and effortless! 🎯💰
+**SmartSpend v2.1** - Making expense tracking intelligent and effortless! 🎯💰
 
-*Enhanced with dynamic time-based filtering, improved UI/UX, and powerful budget insights.*
+*Enhanced with revolutionary calendar picker, improved iOS design, and powerful budget insights.*
