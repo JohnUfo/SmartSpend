@@ -110,7 +110,8 @@ class DataImporter: ObservableObject {
                 }
                 
                 do {
-                    let expense = try parseExpenseFromRow(parseCSVRow(row), header: header, format: format)
+                    let parsedColumns = parseCSVRow(row)
+                    let expense = try parseExpenseFromRow(parsedColumns, header: header, format: format)
                     expensesToAdd.append(expense)
                     importedCount += 1
                 } catch {
@@ -125,6 +126,9 @@ class DataImporter: ObservableObject {
                 for expense in expensesToAdd {
                     dataManager.addExpense(expense)
                 }
+                
+                // Clear Notion sync date to prevent duplicates on next sync
+                NotionIntegrationManager.shared.clearLastSyncDate()
             }
             
             print("✅ Import completed: \(importedCount) imported, \(skippedCount) skipped")
@@ -281,20 +285,26 @@ class DataImporter: ObservableObject {
         let dateString = columns[dateIndex].trimmingCharacters(in: .whitespacesAndNewlines)
         
         guard !title.isEmpty else {
+            print("❌ Title is empty")
             throw ImportError.invalidData("Missing title")
         }
         
         guard let amount = parseAmount(amountString) else {
+            print("❌ Failed to parse amount: '\(amountString)'")
             throw ImportError.invalidData("Invalid amount: \(amountString)")
         }
         
         guard let category = parseCategory(categoryString) else {
+            print("❌ Failed to parse category: '\(categoryString)'")
             throw ImportError.invalidData("Invalid category: \(categoryString)")
         }
         
         guard let date = parseDate(dateString) else {
+            print("❌ Failed to parse date: '\(dateString)'")
             throw ImportError.invalidData("Invalid date: \(dateString)")
         }
+        
+        print("✅ All fields parsed successfully - Title: \(title), Amount: \(amount), Category: \(category), Date: \(date)")
         
         return Expense(title: title, amount: amount, category: category, date: date)
     }
@@ -449,6 +459,11 @@ class DataImporter: ObservableObject {
     }
     
     private func parseDate(_ value: String) -> Date? {
+        let cleanedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Debug logging
+        print("🔍 Parsing date: '\(cleanedValue)'")
+        
         let formatters: [DateFormatter] = [
             createDateFormatter("yyyy-MM-dd"),
             createDateFormatter("MM/dd/yyyy"),
@@ -457,11 +472,18 @@ class DataImporter: ObservableObject {
             createDateFormatter("MM/dd/yyyy HH:mm:ss"),
             createDateFormatter("dd-MM-yyyy"),
             createDateFormatter("dd.MM.yyyy"),
-            createDateFormatter("MM-dd-yyyy")
+            createDateFormatter("MM-dd-yyyy"),
+            createDateFormatter("yyyy/MM/dd"),
+            createDateFormatter("dd/MM/yyyy"),
+            createDateFormatter("yyyy-MM-dd'T'HH:mm:ss"),
+            createDateFormatter("yyyy-MM-dd'T'HH:mm:ss.SSS"),
+            createDateFormatter("yyyy-MM-dd'T'HH:mm:ss'Z'"),
+            createDateFormatter("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
         ]
         
-        for formatter in formatters {
-            if let date = formatter.date(from: value) {
+        for (index, formatter) in formatters.enumerated() {
+            if let date = formatter.date(from: cleanedValue) {
+                print("✅ Date parsed successfully with formatter \(index): \(date)")
                 return date
             }
         }
@@ -471,16 +493,27 @@ class DataImporter: ObservableObject {
             createDateFormatter("MMM dd, yyyy"),
             createDateFormatter("MMMM dd, yyyy"),
             createDateFormatter("dd MMM yyyy"),
-            createDateFormatter("dd MMMM yyyy")
+            createDateFormatter("dd MMMM yyyy"),
+            createDateFormatter("MMM dd yyyy"),
+            createDateFormatter("MMMM dd yyyy")
         ]
         
-        for formatter in relativeFormatters {
+        for (index, formatter) in relativeFormatters.enumerated() {
             formatter.locale = Locale(identifier: "en_US")
-            if let date = formatter.date(from: value) {
+            if let date = formatter.date(from: cleanedValue) {
+                print("✅ Date parsed successfully with relative formatter \(index): \(date)")
                 return date
             }
         }
         
+        // Try ISO8601DateFormatter for ISO format dates
+        let isoFormatter = ISO8601DateFormatter()
+        if let date = isoFormatter.date(from: cleanedValue) {
+            print("✅ Date parsed successfully with ISO8601: \(date)")
+            return date
+        }
+        
+        print("❌ Failed to parse date: '\(cleanedValue)'")
         return nil
     }
     

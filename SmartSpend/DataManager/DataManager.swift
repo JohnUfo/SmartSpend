@@ -31,11 +31,14 @@ class DataManager: ObservableObject {
     @Published var recurringExpenses: [RecurringExpense] = []
     @Published var learnedPatterns: [LearnedPattern] = []
     @Published var selectedTimePeriod: TimePeriod = .currentMonth
+    @Published var customStartDate: Date = Date()
+    @Published var customEndDate: Date = Date()
     
     private init() {
         self.user = User(currency: .usd)
         loadData()
         startTimer()
+        setupNotionSync()
     }
     
     // MARK: - Data Persistence
@@ -68,6 +71,10 @@ class DataManager: ObservableObject {
             
             let learnedPatternsData = try encoder.encode(learnedPatterns)
             UserDefaults.standard.set(learnedPatternsData, forKey: "learnedPatterns")
+            
+            // Save custom date range
+            UserDefaults.standard.set(customStartDate, forKey: "customStartDate")
+            UserDefaults.standard.set(customEndDate, forKey: "customEndDate")
             
         } catch {
             print("Error saving data: \(error)")
@@ -115,6 +122,14 @@ class DataManager: ObservableObject {
         if let learnedPatternsData = UserDefaults.standard.data(forKey: "learnedPatterns"),
            let decodedLearnedPatterns = try? decoder.decode([LearnedPattern].self, from: learnedPatternsData) {
             self.learnedPatterns = decodedLearnedPatterns
+        }
+        
+        // Load custom date range
+        if let savedStartDate = UserDefaults.standard.object(forKey: "customStartDate") as? Date {
+            self.customStartDate = savedStartDate
+        }
+        if let savedEndDate = UserDefaults.standard.object(forKey: "customEndDate") as? Date {
+            self.customEndDate = savedEndDate
         }
         
         // Rebuild patterns from recent expenses on app launch
@@ -322,22 +337,12 @@ class DataManager: ObservableObject {
         
         if shouldRebuild {
             rebuildLearnedPatternsFromRecentExpenses()
-            print("🔄 Rebuilt patterns from last 3 months (\(expenses.count) total expenses)")
         } else {
             // Quick update: just add to existing pattern or create new one
             quickUpdatePattern(for: expense)
         }
         
         saveData()
-        
-        // Debug: Print current patterns
-        print("📊 Smart Learning Debug (Last 3 Months):")
-        print("   Total patterns: \(learnedPatterns.count)")
-        print("   Added expense: '\(expense.title)' - \(expense.category.rawValue) - \(expense.amount)")
-        print("   Current patterns:")
-        for pattern in learnedPatterns.suffix(5) { // Show last 5 patterns
-            print("     - '\(pattern.title)' (freq: \(pattern.totalFrequency), categories: \(pattern.categoryFrequencies.map { "\($0.category.rawValue)(\($0.frequency))" }.joined(separator: ", ")))")
-        }
     }
     
     private func quickUpdatePattern(for expense: Expense) {
@@ -385,7 +390,6 @@ class DataManager: ObservableObject {
     func refreshSmartLearningPatterns() {
         rebuildLearnedPatternsFromRecentExpenses()
         saveData()
-        print("✅ Smart learning patterns refreshed from last 3 months")
     }
     
     private func rebuildLearnedPatternsFromRecentExpenses() {
@@ -396,8 +400,6 @@ class DataManager: ObservableObject {
         let recentExpenses = expenses.filter { expense in
             expense.date >= threeMonthsAgo
         }
-        
-        print("🔄 Rebuilding patterns from \(recentExpenses.count) expenses in last 3 months")
         
         // Clear existing patterns and rebuild from recent expenses
         learnedPatterns.removeAll()
@@ -458,7 +460,6 @@ class DataManager: ObservableObject {
                     
                     // Mark pattern j for removal
                     indicesToRemove.insert(j)
-                    print("🔗 Merged similar patterns: '\(learnedPatterns[i].title)' + '\(learnedPatterns[j].title)'")
                 }
             }
         }
@@ -727,6 +728,18 @@ class DataManager: ObservableObject {
         saveData()
     }
     
+    func updateCustomDateRange(startDate: Date, endDate: Date) {
+        customStartDate = startDate
+        customEndDate = endDate
+        saveData()
+    }
+    
+    // MARK: - Notion Integration
+    private func setupNotionSync() {
+        // Notion sync is now controlled by the user via the auto-sync toggle
+        // No automatic sync is started here
+    }
+    
     // MARK: - Time Period Filtering
     
     func getFilteredExpenses() -> [Expense] {
@@ -742,7 +755,9 @@ class DataManager: ObservableObject {
             guard let lastMonth = calendar.date(byAdding: .month, value: -1, to: now) else { return [] }
             return expenses.filter { calendar.isDate($0.date, equalTo: lastMonth, toGranularity: .month) }
         case .customMonth:
-            return expenses.filter { calendar.isDate($0.date, equalTo: now, toGranularity: .month) }
+            return expenses.filter { expense in
+                expense.date >= customStartDate && expense.date <= customEndDate
+            }
         }
     }
     
@@ -769,7 +784,23 @@ class DataManager: ObservableObject {
             let month = calendar.component(.month, from: lastMonth)
             return getSalaryForMonth(month: month, year: year)
         case .customMonth:
-            return getCurrentMonthSalary() // Default to current month
+            // For custom month, calculate salary based on the date range
+            let calendar = Calendar.current
+            let startYear = calendar.component(.year, from: customStartDate)
+            let startMonth = calendar.component(.month, from: customStartDate)
+            let endYear = calendar.component(.year, from: customEndDate)
+            let endMonth = calendar.component(.month, from: customEndDate)
+            
+            // If the range spans multiple months, sum up the salaries
+            if startYear == endYear && startMonth == endMonth {
+                return getSalaryForMonth(month: startMonth, year: startYear)
+            } else {
+                // For multi-month ranges, calculate proportional salary
+                let daysInRange = calendar.dateComponents([.day], from: customStartDate, to: customEndDate).day ?? 1
+                let totalDaysInStartMonth = calendar.range(of: .day, in: .month, for: customStartDate)?.count ?? 30
+                let startMonthSalary = getSalaryForMonth(month: startMonth, year: startYear)
+                return (startMonthSalary / Double(totalDaysInStartMonth)) * Double(daysInRange)
+            }
         }
     }
     

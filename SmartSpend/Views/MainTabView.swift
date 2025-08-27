@@ -48,6 +48,7 @@ struct SettingsView: View {
     @State private var showingDeletedExpenses = false
     @State private var showingDataExport = false
     @State private var showingDataImport = false
+    @State private var showingNotionIntegration = false
     @State private var showingAlert = false
     
     private var currentMonthSalaryText: String {
@@ -130,6 +131,25 @@ struct SettingsView: View {
                         icon: "tag.fill",
                         color: Color(.systemOrange)
                     )
+                }
+                
+                Section("Integrations") {
+                    Button(action: {
+                        showingNotionIntegration = true
+                    }) {
+                        HStack {
+                            Label("Notion Integration", systemImage: "link.badge.plus")
+                                .foregroundStyle(Color(.systemBlue))
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
                 
                 Section("Data Management") {
@@ -241,6 +261,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showingDataImport) {
                 DataImportView()
+            }
+            .sheet(isPresented: $showingNotionIntegration) {
+                NotionIntegrationView()
             }
             .alert("Clear All Data", isPresented: $showingAlert) {
                 Button("Cancel", role: .cancel) { }

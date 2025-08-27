@@ -125,19 +125,12 @@ struct AddExpenseView: View {
         let suggestions = dataManager.getCategoryFocusedSuggestions(for: title)
         let priceSuggestion = suggestions.first?.mostUsedPrice
         
-        print("🔍 Smart Learning Debug for '\(title)':")
-        print("   Total patterns: \(dataManager.learnedPatterns.count)")
-        print("   Found suggestions: \(suggestions.count)")
-        print("   Category predictions: \(categoryPreds.count)")
-        
         if !categoryPreds.isEmpty {
             categorySuggestions = categoryPreds
             suggestedPrice = priceSuggestion
             showingSuggestions = true
-            print("   ✅ Showing suggestions")
         } else {
             showingSuggestions = false
-            print("   ❌ No suggestions found")
         }
     }
     

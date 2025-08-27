@@ -69,8 +69,7 @@ struct DashboardView: View {
 struct BudgetDetailsView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var dataManager = DataManager.shared
-    
-
+    @State private var showingCustomMonthPicker = false
     
     var body: some View {
         NavigationStack {
@@ -99,6 +98,10 @@ struct BudgetDetailsView: View {
                     .fontWeight(.semibold)
                 }
             }
+            .sheet(isPresented: $showingCustomMonthPicker) {
+                CustomMonthPickerView()
+                    .presentationDetents([.fraction(0.85)])
+            }
         }
     }
     
@@ -109,10 +112,48 @@ struct BudgetDetailsView: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(.primary)
             
+            // Show custom date range if custom month is selected
+            if dataManager.selectedTimePeriod == .customMonth {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Custom Date Range")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                        
+                        Text("\(formatDate(dataManager.customStartDate)) - \(formatDate(dataManager.customEndDate))")
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        showingCustomMonthPicker = true
+                    }) {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.tint)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(.systemGray4), lineWidth: 1)
+                )
+            }
+            
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
                 ForEach(TimePeriod.allCases, id: \.self) { period in
                     Button(action: {
-                        dataManager.selectedTimePeriod = period
+                        if period == .customMonth {
+                            showingCustomMonthPicker = true
+                        } else {
+                            dataManager.selectedTimePeriod = period
+                        }
                     }) {
                         HStack(spacing: 8) {
                             Image(systemName: period.icon)
@@ -232,7 +273,11 @@ struct BudgetDetailsView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
     
-
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM dd, yyyy"
+        return formatter.string(from: date)
+    }
     
 }
 
@@ -576,6 +621,244 @@ struct CategoryRowView: View {
         return CurrencyFormatter.format(amount, currency: currency)
     }
 }
+
+struct CustomMonthPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var dataManager = DataManager.shared
+    @State private var currentMonth: Date = Date()
+    @State private var selectionStep: SelectionStep = .firstDate
+    @State private var tempStartDate: Date = Date()
+    @State private var tempEndDate: Date = Date()
+    
+    enum SelectionStep {
+        case firstDate
+        case secondDate
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Header with Instructions
+                VStack(spacing: 20) {
+                    // Instructions
+                    Text(instructionText)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                    
+                    // From and To Buttons
+                    HStack(spacing: 16) {
+                        Button(action: {
+                            selectionStep = .firstDate
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "calendar.badge.plus")
+                                    .font(.system(size: 14, weight: .medium))
+                                Text("From")
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                            .foregroundColor(selectionStep == .firstDate ? .white : .blue)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(selectionStep == .firstDate ? Color.blue : Color.blue.opacity(0.1))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Button(action: {
+                            selectionStep = .secondDate
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "calendar.badge.clock")
+                                    .font(.system(size: 14, weight: .medium))
+                                Text("To")
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                            .foregroundColor(selectionStep == .secondDate ? .white : .blue)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(selectionStep == .secondDate ? Color.blue : Color.blue.opacity(0.1))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.top, 16)
+                .padding(.bottom, 24)
+                .background(Color(.systemGroupedBackground))
+                
+                // Calendar View
+                VStack(spacing: 20) {
+                    // Month Navigation
+                    HStack {
+                        Button(action: previousMonth) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(Color(.systemBlue))
+                                .frame(width: 36, height: 36)
+                                .background(Color(.systemGray6))
+                                .clipShape(Circle())
+                        }
+                        
+                        Spacer()
+                        
+                        Text(monthYearString(from: currentMonth))
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(Color(.label))
+                        
+                        Spacer()
+                        
+                        Button(action: nextMonth) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(Color(.systemBlue))
+                                .frame(width: 36, height: 36)
+                                .background(Color(.systemGray6))
+                                .clipShape(Circle())
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    
+                    // Calendar Grid
+                    VStack(spacing: 12) {
+                        // Day headers
+                        HStack(spacing: 0) {
+                            ForEach(Array(["S", "M", "T", "W", "T", "F", "S"].enumerated()), id: \.offset) { index, day in
+                                Text(day)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(Color(.secondaryLabel))
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        
+                        // Calendar days
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 4) {
+                            ForEach(Array(calendarDays.enumerated()), id: \.offset) { index, date in
+                                if let date = date {
+                                    CalendarDayView(
+                                        date: date,
+                                        isSelected: isDateSelected(date),
+                                        isInRange: isDateInRange(date),
+                                        isCurrentMonth: Calendar.current.isDate(date, equalTo: currentMonth, toGranularity: .month),
+                                        isDateRangeMode: true
+                                    ) {
+                                        selectDate(date)
+                                    }
+                                } else {
+                                    Color.clear
+                                        .frame(height: 40)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                
+                Spacer()
+            }
+            .navigationTitle("Select Custom Date Range")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        // Apply the selected date range when Done is pressed
+                        dataManager.updateCustomDateRange(startDate: tempStartDate, endDate: tempEndDate)
+                        dataManager.selectedTimePeriod = .customMonth
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+            .onAppear {
+                currentMonth = dataManager.customStartDate
+                tempStartDate = dataManager.customStartDate
+                tempEndDate = dataManager.customEndDate
+            }
+        }
+    }
+    
+    private var calendarDays: [Date?] {
+        let calendar = Calendar.current
+        let startOfMonth = calendar.dateInterval(of: .month, for: currentMonth)?.start ?? currentMonth
+        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: startOfMonth)?.start ?? startOfMonth
+        
+        var days: [Date?] = []
+        let endDate = calendar.date(byAdding: .day, value: 41, to: startOfWeek) ?? startOfWeek
+        
+        var currentDate = startOfWeek
+        while currentDate < endDate {
+            if calendar.isDate(currentDate, equalTo: currentMonth, toGranularity: .month) {
+                days.append(currentDate)
+            } else {
+                days.append(nil)
+            }
+            currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
+        }
+        
+        return days
+    }
+    
+    private func previousMonth() {
+        currentMonth = Calendar.current.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
+    }
+    
+    private func nextMonth() {
+        currentMonth = Calendar.current.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
+    }
+    
+    private func selectDate(_ date: Date) {
+        switch selectionStep {
+        case .firstDate:
+            tempStartDate = date
+        case .secondDate:
+            tempEndDate = date
+        }
+    }
+    
+    private func isDateSelected(_ date: Date) -> Bool {
+        switch selectionStep {
+        case .firstDate:
+            return Calendar.current.isDate(date, inSameDayAs: tempStartDate)
+        case .secondDate:
+            return Calendar.current.isDate(date, inSameDayAs: tempEndDate)
+        }
+    }
+    
+    private func isDateInRange(_ date: Date) -> Bool {
+        return false
+    }
+    
+    private func monthYearString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.string(from: date)
+    }
+    
+    private var instructionText: String {
+        switch selectionStep {
+        case .firstDate:
+            return "Tap 'From' button and select start date, then tap 'To' button and select end date"
+        case .secondDate:
+            return "Select the end date to complete your range"
+        }
+    }
+}
+
+
 
 #Preview {
     DashboardView()

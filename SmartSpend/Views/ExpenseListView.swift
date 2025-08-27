@@ -180,7 +180,6 @@ struct ExpenseListView: View {
                         ForEach(filteredExpenses) { expense in
                             ExpenseRowView(expense: expense)
                         }
-                        .onDelete(perform: deleteExpense)
                     }
                     .listStyle(.plain)
                 }
@@ -216,12 +215,7 @@ struct ExpenseListView: View {
         }
     }
     
-    private func deleteExpense(at offsets: IndexSet) {
-        for index in offsets {
-            let expense = filteredExpenses[index]
-            dataManager.deleteExpense(expense)
-        }
-    }
+
     
     private func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)

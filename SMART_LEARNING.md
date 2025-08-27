@@ -2,7 +2,7 @@
 
 ## 🧠 Overview
 
-The SmartSpend Learning System is an intelligent expense prediction engine that learns from user behavior to provide accurate suggestions for expense entry. This system reduces manual input time and improves data consistency by learning patterns from historical expense data.
+The SmartSpend Learning System is an intelligent expense prediction engine that learns from user behavior to provide accurate suggestions for expense entry. This system reduces manual input time and improves data consistency by learning patterns from historical expense data. Version 2.2 introduces silent operation and enhanced performance optimizations.
 
 ## 🎯 Core Concept
 
@@ -17,6 +17,7 @@ struct LearnedPattern: Identifiable, Codable {
     let title: String                           // Expense title (e.g., "Coffee")
     var combinations: [PriceCategoryCombination] // All price-category pairs
     var lastUsed: Date                          // Last time this pattern was accessed
+    let keywords: [String]                      // Extracted keywords for better matching
 }
 
 struct PriceCategoryCombination: Codable, Equatable {
@@ -35,7 +36,8 @@ LearnedPattern(
         PriceCategoryCombination(price: 5.50, category: .food, frequency: 15),
         PriceCategoryCombination(price: 4.25, category: .food, frequency: 8),
         PriceCategoryCombination(price: 6.00, category: .food, frequency: 3)
-    ]
+    ],
+    keywords: ["coffee", "cafe", "drink"]
 )
 ```
 
@@ -47,88 +49,150 @@ When a user adds a new expense:
 
 ```swift
 func updateLearnedPatterns(for expense: Expense) {
-    let title = expense.title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+    // Only rebuild patterns periodically for performance
+    let shouldRebuild = learnedPatterns.isEmpty || expenses.count % 10 == 0
     
-    // Find existing pattern or create new one
-    if let index = learnedPatterns.firstIndex(where: { $0.title.lowercased() == title }) {
-        var pattern = learnedPatterns[index]
-        
-        // Look for existing price-category combination
-        if let combIndex = pattern.combinations.firstIndex(where: { 
-            $0.price == expense.amount && $0.category == expense.category 
-        }) {
-            // Increment frequency of existing combination
-            pattern.combinations[combIndex].frequency += 1
-        } else {
-            // Add new combination
-            pattern.combinations.append(
-                PriceCategoryCombination(
-                    price: expense.amount,
-                    category: expense.category,
-                    frequency: 1
-                )
-            )
-        }
-        
-        pattern.lastUsed = Date()
-        learnedPatterns[index] = pattern
+    if shouldRebuild {
+        rebuildLearnedPatternsFromRecentExpenses()
     } else {
-        // Create new pattern
-        let newPattern = LearnedPattern(
-            title: title,
-            combinations: [PriceCategoryCombination(
-                price: expense.amount,
-                category: expense.category,
-                frequency: 1
-            )]
-        )
-        learnedPatterns.append(newPattern)
+        // Quick update: just add to existing pattern or create new one
+        quickUpdatePattern(for: expense)
     }
+    
+    saveData()
 }
 ```
 
-### 2. Suggestion Generation
+### 2. Smart Pattern Rebuilding
+
+The system rebuilds patterns from recent expenses for optimal performance:
+
+```swift
+private func rebuildLearnedPatternsFromRecentExpenses() {
+    // Get expenses from last 3 months
+    let calendar = Calendar.current
+    let threeMonthsAgo = calendar.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+    
+    let recentExpenses = expenses.filter { expense in
+        expense.date >= threeMonthsAgo
+    }
+    
+    // Clear existing patterns and rebuild from recent expenses
+    learnedPatterns.removeAll()
+    
+    // Group expenses by title (case-insensitive) and build patterns
+    var expenseGroups: [String: [Expense]] = [:]
+    
+    for expense in recentExpenses {
+        let normalizedTitle = expense.title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        expenseGroups[normalizedTitle, default: []].append(expense)
+    }
+    
+    // Create patterns from grouped expenses
+    for (_, expensesForTitle) in expenseGroups {
+        guard !expensesForTitle.isEmpty else { continue }
+        
+        // Use the original case from the most recent expense
+        let mostRecentExpense = expensesForTitle.max(by: { $0.date < $1.date }) ?? expensesForTitle.first!
+        
+        // Create new pattern with the first expense
+        var pattern = LearnedPattern(
+            title: mostRecentExpense.title,
+            price: mostRecentExpense.amount,
+            category: mostRecentExpense.category
+        )
+        
+        // Add all other expenses to the pattern
+        for expense in expensesForTitle.dropFirst() {
+            pattern.addCombination(price: expense.amount, category: expense.category)
+        }
+        
+        learnedPatterns.append(pattern)
+    }
+    
+    // Also check for similar patterns that should be merged
+    mergeSimilarPatterns()
+}
+```
+
+### 3. Enhanced Suggestion Generation
 
 When a user starts typing an expense title:
 
 ```swift
-func getSuggestions(for title: String) -> [LearnedPattern] {
-    let searchTitle = title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+func getSmartSuggestions(for title: String) -> [LearnedPattern] {
+    // Filter patterns by similarity score
+    let similarPatterns = learnedPatterns
+        .map { pattern in
+            (pattern: pattern, similarity: pattern.similarityScore(with: title))
+        }
+        .filter { $0.similarity > 0.1 } // Lower threshold for more sensitive matching
+        .sorted { $0.similarity > $1.similarity }
+        .prefix(5)
+        .map { $0.pattern }
     
-    return learnedPatterns.filter { pattern in
-        pattern.title.lowercased().contains(searchTitle)
+    // If no similar patterns found, fall back to old method
+    if similarPatterns.isEmpty {
+        return learnedPatterns
+            .filter { $0.title.lowercased().contains(title.lowercased()) || title.lowercased().contains($0.title.lowercased()) }
+            .sorted { $0.totalFrequency > $1.totalFrequency }
+            .prefix(3)
+            .map { $0 }
     }
-    .sorted { pattern1, pattern2 in
-        // Sort by most recent usage
-        pattern1.lastUsed > pattern2.lastUsed
-    }
-    .prefix(5) // Limit to 5 suggestions
-    .map { pattern in
-        // Return pattern with most frequent combination first
-        var sortedPattern = pattern
-        sortedPattern.combinations.sort { $0.frequency > $1.frequency }
-        return sortedPattern
-    }
+    
+    return Array(similarPatterns)
 }
 ```
 
-### 3. Best Suggestion Selection
+### 4. Best Suggestion Selection
 
 For each pattern, the system returns the most frequently used combination:
 
 ```swift
-var bestSuggestion: PriceCategoryCombination? {
-    return combinations.max { $0.frequency < $1.frequency }
+var mostCommonCombination: PriceCategoryCombination? {
+    return combinations.max(by: { $0.frequency < $1.frequency })
+}
+
+var mostUsedPrice: Double {
+    return mostCommonCombination?.price ?? 0.0
+}
+
+var mostUsedCategory: ExpenseCategory {
+    return categoryFrequencies.max(by: { $0.frequency < $1.frequency })?.category ?? .food
 }
 ```
 
 ## 🔧 Implementation Details
 
+### Silent Operation (v2.2 Enhancement)
+
+The smart learning system now operates silently without verbose console logging:
+
+```swift
+// Before v2.2 - Verbose logging
+print("🔄 Rebuilt patterns from last 3 months (\(expenses.count) total expenses)")
+print("📊 Smart Learning Debug (Last 3 Months):")
+print("   Total patterns: \(learnedPatterns.count)")
+print("   Added expense: '\(expense.title)' - \(expense.category.rawValue) - \(expense.amount)")
+
+// After v2.2 - Silent operation
+// No console output during normal operation
+// Clean user experience without debug clutter
+```
+
+### Performance Optimizations (v2.2 Enhancement)
+
+1. **Periodic Rebuilding**: Patterns are rebuilt every 10 expenses instead of on every expense
+2. **Quick Updates**: Simple pattern updates for individual expenses
+3. **3-Month Window**: Only considers expenses from the last 3 months for relevance
+4. **Similarity Matching**: Uses Levenshtein distance for fuzzy matching
+5. **Memory Management**: Efficient pattern storage and retrieval
+
 ### Auto-completion Logic
 
 The suggestion system activates when:
 1. User types 2 or more characters in the title field
-2. System searches for matching patterns (case-insensitive)
+2. System searches for matching patterns using similarity scoring
 3. Returns up to 5 most relevant suggestions
 4. Each suggestion shows the most frequent price-category combination
 
@@ -152,38 +216,36 @@ var canSuggestBudgets: Bool {
 
 ### Suggestion Display
 ```swift
-struct SuggestionView: View {
-    let pattern: LearnedPattern
+struct EnhancedSuggestionView: View {
+    let categorySuggestions: [(category: ExpenseCategory, confidence: Double)]
+    let suggestedPrice: Double?
     let currency: Currency
-    let onUse: (Double, ExpenseCategory) -> Void
+    let onCategorySelect: (ExpenseCategory) -> Void
+    let onPriceSelect: (Double) -> Void
+    let onDismiss: () -> Void
     
     var body: some View {
-        if let bestCombination = pattern.combinations.max(by: { $0.frequency < $1.frequency }) {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text(pattern.title.capitalized)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    
-                    HStack {
-                        Text(CurrencyFormatter.format(bestCombination.price, currency: currency))
-                        Text("•")
-                        Text(bestCombination.category.rawValue)
-                        Text("(\(bestCombination.frequency)x)")
-                    }
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                Button("Use") {
-                    onUse(bestCombination.price, bestCombination.category)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            suggestionHeader
+            
+            // Category Suggestions
+            categorySection
+            
+            // Price Suggestion
+            if let price = suggestedPrice {
+                Divider()
+                priceSection(price: price)
+            }
+            
+            // Helper text
+            if selectedCategory != nil || selectedPrice != nil {
+                Divider()
+                helperText
             }
         }
+        .padding(12)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 ```
@@ -193,24 +255,43 @@ struct SuggestionView: View {
 TextField("Expense title", text: $title)
     .onChange(of: title) { _, newValue in
         if newValue.count >= 2 {
-            suggestions = dataManager.getSuggestions(for: newValue)
+            updateSuggestions(for: newValue)
         } else {
             suggestions.removeAll()
         }
     }
+
+private func updateSuggestions(for title: String) {
+    // Get category predictions
+    let categoryPreds = dataManager.getTopCategorySuggestions(for: title, limit: 3)
+    
+    // Get price suggestions from similar patterns
+    let suggestions = dataManager.getCategoryFocusedSuggestions(for: title)
+    let priceSuggestion = suggestions.first?.mostUsedPrice
+    
+    if !categoryPreds.isEmpty {
+        categorySuggestions = categoryPreds
+        suggestedPrice = priceSuggestion
+        showingSuggestions = true
+    } else {
+        showingSuggestions = false
+    }
+}
 ```
 
 ## 📈 Performance Considerations
 
 ### Memory Management
 - Patterns are stored in memory and persisted to UserDefaults
-- Only active patterns (used in last 6 months) are kept in memory
+- Only active patterns (used in last 3 months) are kept in memory
 - Automatic cleanup removes unused patterns to prevent memory bloat
+- Periodic rebuilding prevents memory fragmentation
 
 ### Search Optimization
-- Case-insensitive string matching for better user experience
-- Prefix-based search for real-time suggestions
+- Similarity-based matching for better user experience
+- Fuzzy string matching using Levenshtein distance
 - Limited result set (5 suggestions) for optimal performance
+- Cached similarity scores for faster repeated searches
 
 ### Data Persistence
 ```swift
@@ -229,22 +310,24 @@ As users continue to use the app:
 2. **Pattern Pruning**: Rarely used combinations are eventually removed
 3. **Recency Weighting**: Recently used patterns appear first in suggestions
 4. **Category Consistency**: System learns user's category preferences for specific items
+5. **Similarity Learning**: System improves pattern matching over time
 
 ### Adaptive Behavior
 - **New User Experience**: System starts learning from first expense
 - **Established User**: Rich suggestions based on historical data
 - **Seasonal Adjustments**: Patterns adapt to changing spending habits
 - **Context Awareness**: Different suggestions for different spending amounts
+- **Silent Operation**: Clean user experience without debug output
 
 ## 🛠️ Maintenance and Cleanup
 
 ### Automatic Cleanup
 ```swift
 func cleanupOldPatterns() {
-    let sixMonthsAgo = Calendar.current.date(byAdding: .month, value: -6, to: Date()) ?? Date()
+    let threeMonthsAgo = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
     
     learnedPatterns.removeAll { pattern in
-        pattern.lastUsed < sixMonthsAgo
+        pattern.lastUsed < threeMonthsAgo
     }
     
     saveLearnedPatterns()
@@ -264,12 +347,14 @@ Users can reset learning data through:
 - **Consistency**: Maintains consistent categorization
 - **Accuracy**: Reduces manual errors in amount entry
 - **Personalization**: Adapts to individual spending patterns
+- **Clean Experience**: No debug output cluttering the console
 
 ### For Developers
 - **Simple Implementation**: No complex ML frameworks required
 - **Maintainable Code**: Clear, understandable logic
 - **Extensible Design**: Easy to add new learning features
 - **Performance Efficient**: Minimal computational overhead
+- **Silent Operation**: Clean console output for better debugging
 
 ## 🚀 Future Enhancements
 
@@ -285,7 +370,30 @@ Users can reset learning data through:
 2. **Anomaly Detection**: Flag unusual spending patterns
 3. **Predictive Budgeting**: Suggest budgets based on learned patterns
 4. **Smart Categorization**: Auto-categorize based on title patterns
+5. **Enhanced Similarity Matching**: More sophisticated pattern matching algorithms
+
+## 🔧 Technical Improvements in v2.2
+
+### Silent Operation
+- **Removed Debug Output**: Eliminated verbose console logging during normal operation
+- **Clean User Experience**: No debug messages cluttering the interface
+- **Performance Monitoring**: Optional debug mode for development (future feature)
+
+### Performance Optimizations
+- **Periodic Rebuilding**: Patterns rebuilt every 10 expenses instead of every expense
+- **Quick Updates**: Efficient individual pattern updates
+- **3-Month Window**: Focused learning on recent, relevant data
+- **Similarity Scoring**: Enhanced pattern matching with Levenshtein distance
+- **Memory Efficiency**: Better memory management and cleanup
+
+### Enhanced Pattern Matching
+- **Fuzzy Matching**: Improved similarity scoring for better suggestions
+- **Keyword Extraction**: Better pattern recognition with extracted keywords
+- **Category Focus**: Enhanced category-focused suggestions
+- **Confidence Scoring**: Better suggestion ranking and filtering
 
 ---
 
-The SmartSpend Learning System represents a perfect balance between simplicity and intelligence, providing users with meaningful suggestions while maintaining code clarity and system performance. 🧠✨
+The SmartSpend Learning System v2.2 represents a perfect balance between simplicity and intelligence, providing users with meaningful suggestions while maintaining code clarity, system performance, and a clean user experience. 🧠✨
+
+*Enhanced with silent operation, performance optimizations, and improved pattern matching.*
