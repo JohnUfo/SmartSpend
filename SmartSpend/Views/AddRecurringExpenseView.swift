@@ -1,0 +1,452 @@
+import SwiftUI
+
+struct AddRecurringExpenseView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var dataManager = DataManager.shared
+    
+    @State private var title = ""
+    @State private var amount = ""
+    @State private var selectedCategory: ExpenseCategory = .food
+    @State private var selectedUserCategory: UserCategory? = nil
+    @State private var selectedRecurrence: RecurrenceType = .monthly
+    @State private var startDate = Date()
+    @State private var hasEndDate = false
+    @State private var endDate = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
+    @State private var isActive = true
+    @State private var showingCategoryManagement = false
+    
+    private let mainCategories: [ExpenseCategory] = [.food, .transportation, .shopping, .bills, .entertainment, .other]
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("expense_details".localized) {
+                    TextField("title".localized, text: $title)
+                        .textInputAutocapitalization(.words)
+                    
+                    HStack {
+                        Text("amount".localized)
+                        Spacer()
+                        TextField("0.00", text: $amount)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    
+                    // Category Selection
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            Text("category".localized)
+                            Spacer()
+                            Menu {
+                                // All Categories together
+                                ForEach(mainCategories, id: \.self) { category in
+                                    Button(action: {
+                                        selectedCategory = category
+                                        selectedUserCategory = nil
+                                    }) {
+                                        Label {
+                                            Text(category.localizedName)
+                                        } icon: {
+                                            Image(systemName: category.icon)
+                                        }
+                                    }
+                                }
+                                
+                                ForEach(dataManager.userCategories) { userCategory in
+                                    Button(action: {
+                                        selectedUserCategory = userCategory
+                                    }) {
+                                        Label {
+                                            Text(userCategory.name)
+                                        } icon: {
+                                            Image(systemName: userCategory.iconSystemName)
+                                        }
+                                    }
+                                }
+                                
+                                Divider()
+                                
+                                // Create New Category
+                                Button(action: { showingCategoryManagement = true }) {
+                                    Label("Create New Category", systemImage: "plus.circle")
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    if let userCat = selectedUserCategory {
+                                        Image(systemName: userCat.iconSystemName)
+                                            .foregroundStyle(userCat.color)
+                                        Text(userCat.name)
+                                            .foregroundStyle(.primary)
+                                    } else {
+                                        Image(systemName: selectedCategory.icon)
+                                            .foregroundStyle(selectedCategory.color)
+                                        Text(selectedCategory.localizedName)
+                                            .foregroundStyle(.primary)
+                                    }
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Section("recurrence".localized) {
+                    Picker("frequency".localized, selection: $selectedRecurrence) {
+                        ForEach(RecurrenceType.allCases, id: \.self) { recurrence in
+                            HStack {
+                                Image(systemName: recurrence.icon)
+                                Text(recurrence.rawValue)
+                            }
+                            .tag(recurrence)
+                        }
+                    }
+                    
+                    DatePicker("start_date".localized, selection: $startDate, displayedComponents: .date)
+                    
+                    Toggle("end_date".localized, isOn: $hasEndDate)
+                    
+                    if hasEndDate {
+                        DatePicker("end_date".localized, selection: $endDate, in: startDate..., displayedComponents: .date)
+                    }
+                }
+                
+                Section("settings".localized) {
+                    Toggle("active".localized, isOn: $isActive)
+                }
+                
+                Section {
+                    RecurrencePreviewView(
+                        recurrenceType: selectedRecurrence,
+                        startDate: startDate,
+                        endDate: hasEndDate ? endDate : nil
+                    )
+                }
+            }
+            .navigationTitle("add_recurring_expense".localized)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("cancel".localized) {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("save".localized) {
+                        saveRecurringExpense()
+                    }
+                    .disabled(!canSave)
+                }
+            }
+            .sheet(isPresented: $showingCategoryManagement) {
+                CategoryManagementView()
+            }
+        }
+    }
+    
+    private var canSave: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !amount.isEmpty &&
+        Double(amount) != nil &&
+        Double(amount)! > 0
+    }
+    
+    private func saveRecurringExpense() {
+        guard let amountValue = Double(amount) else { return }
+        
+        let recurringExpense = RecurringExpense(
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            amount: amountValue,
+            category: selectedCategory,
+            recurrenceType: selectedRecurrence,
+            startDate: startDate,
+            endDate: hasEndDate ? endDate : nil
+        )
+        
+        var newRecurring = recurringExpense
+        newRecurring.isActive = isActive
+        
+        dataManager.addRecurringExpense(newRecurring)
+        dismiss()
+    }
+}
+
+struct EditRecurringExpenseView: View {
+    let recurringExpense: RecurringExpense
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var dataManager = DataManager.shared
+    
+    @State private var title = ""
+    @State private var amount = ""
+    @State private var selectedCategory: ExpenseCategory = .food
+    @State private var selectedUserCategory: UserCategory? = nil
+    @State private var selectedRecurrence: RecurrenceType = .monthly
+    @State private var startDate = Date()
+    @State private var hasEndDate = false
+    @State private var endDate = Date()
+    @State private var isActive = true
+    @State private var showingCategoryManagement = false
+    
+    private let mainCategories: [ExpenseCategory] = [.food, .transportation, .shopping, .bills, .entertainment, .other]
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("expense_details".localized) {
+                    TextField("title".localized, text: $title)
+                        .textInputAutocapitalization(.words)
+                    
+                    HStack {
+                        Text("amount".localized)
+                        Spacer()
+                        TextField("0.00", text: $amount)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    
+                    // Category Selection
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            Text("category".localized)
+                            Spacer()
+                            Menu {
+                                // All Categories together
+                                ForEach(mainCategories, id: \.self) { category in
+                                    Button(action: {
+                                        selectedCategory = category
+                                        selectedUserCategory = nil
+                                    }) {
+                                        Label {
+                                            Text(category.localizedName)
+                                        } icon: {
+                                            Image(systemName: category.icon)
+                                        }
+                                    }
+                                }
+                                
+                                ForEach(dataManager.userCategories) { userCategory in
+                                    Button(action: {
+                                        selectedUserCategory = userCategory
+                                    }) {
+                                        Label {
+                                            Text(userCategory.name)
+                                        } icon: {
+                                            Image(systemName: userCategory.iconSystemName)
+                                        }
+                                    }
+                                }
+                                
+                                Divider()
+                                
+                                // Create New Category
+                                Button(action: { showingCategoryManagement = true }) {
+                                    Label("Create New Category", systemImage: "plus.circle")
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    if let userCat = selectedUserCategory {
+                                        Image(systemName: userCat.iconSystemName)
+                                            .foregroundStyle(userCat.color)
+                                        Text(userCat.name)
+                                            .foregroundStyle(.primary)
+                                    } else {
+                                        Image(systemName: selectedCategory.icon)
+                                            .foregroundStyle(selectedCategory.color)
+                                        Text(selectedCategory.localizedName)
+                                            .foregroundStyle(.primary)
+                                    }
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Section("recurrence".localized) {
+                    Picker("frequency".localized, selection: $selectedRecurrence) {
+                        ForEach(RecurrenceType.allCases, id: \.self) { recurrence in
+                            HStack {
+                                Image(systemName: recurrence.icon)
+                                Text(recurrence.rawValue)
+                            }
+                            .tag(recurrence)
+                        }
+                    }
+                    
+                    DatePicker("start_date".localized, selection: $startDate, displayedComponents: .date)
+                    
+                    Toggle("end_date".localized, isOn: $hasEndDate)
+                    
+                    if hasEndDate {
+                        DatePicker("end_date".localized, selection: $endDate, in: startDate..., displayedComponents: .date)
+                    }
+                }
+                
+                Section("settings".localized) {
+                    Toggle("active".localized, isOn: $isActive)
+                }
+                
+                Section("status".localized) {
+                    if let lastProcessed = recurringExpense.lastProcessedDate {
+                        HStack {
+                            Text("last_processed".localized)
+                            Spacer()
+                            Text(DateFormatter.shortDate.string(from: lastProcessed))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    HStack {
+                        Text("next_due".localized)
+                        Spacer()
+                        Text(DateFormatter.shortDate.string(from: recurringExpense.nextDueDate))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Section {
+                    RecurrencePreviewView(
+                        recurrenceType: selectedRecurrence,
+                        startDate: startDate,
+                        endDate: hasEndDate ? endDate : nil
+                    )
+                }
+            }
+            .navigationTitle("edit_recurring_expense".localized)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("cancel".localized) {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("save".localized) {
+                        saveChanges()
+                    }
+                    .disabled(!canSave)
+                }
+            }
+            .onAppear {
+                loadExpenseData()
+            }
+            .sheet(isPresented: $showingCategoryManagement) {
+                CategoryManagementView()
+            }
+        }
+    }
+    
+    private var canSave: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !amount.isEmpty &&
+        Double(amount) != nil &&
+        Double(amount)! > 0
+    }
+    
+    private func loadExpenseData() {
+        title = recurringExpense.title
+        amount = String(format: "%.2f", recurringExpense.amount)
+        selectedCategory = recurringExpense.category
+        selectedRecurrence = recurringExpense.recurrenceType
+        startDate = recurringExpense.startDate
+        hasEndDate = recurringExpense.endDate != nil
+        endDate = recurringExpense.endDate ?? Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
+        isActive = recurringExpense.isActive
+    }
+    
+    private func saveChanges() {
+        guard let amountValue = Double(amount) else { return }
+        
+        var updatedExpense = recurringExpense
+        updatedExpense.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        updatedExpense.amount = amountValue
+        updatedExpense.category = selectedCategory
+        updatedExpense.recurrenceType = selectedRecurrence
+        updatedExpense.startDate = startDate
+        updatedExpense.endDate = hasEndDate ? endDate : nil
+        updatedExpense.isActive = isActive
+        
+        dataManager.updateRecurringExpense(updatedExpense)
+        dismiss()
+    }
+}
+
+// MARK: - Recurrence Preview
+struct RecurrencePreviewView: View {
+    let recurrenceType: RecurrenceType
+    let startDate: Date
+    let endDate: Date?
+    
+    private var upcomingDates: [Date] {
+        var dates: [Date] = []
+        var currentDate = startDate
+        
+        for _ in 0..<5 {
+            dates.append(currentDate)
+            currentDate = recurrenceType.nextDate(from: currentDate)
+            
+            if let end = endDate, currentDate > end {
+                break
+            }
+        }
+        
+        return dates
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("upcoming_occurrences".localized)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(upcomingDates.indices, id: \.self) { index in
+                    HStack {
+                        Text("\(index + 1).")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .frame(width: 20, alignment: .leading)
+                        
+                        Text(DateFormatter.mediumDate.string(from: upcomingDates[index]))
+                            .font(.caption)
+                            .foregroundColor(.primary)
+                        
+                        if index == 0 {
+                            Text("(\("start".localized))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                    }
+                }
+                
+                if upcomingDates.count == 5 {
+                    Text("...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
+                }
+            }
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+extension DateFormatter {
+    static let mediumDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
+}
+
+#Preview {
+    AddRecurringExpenseView()
+}
