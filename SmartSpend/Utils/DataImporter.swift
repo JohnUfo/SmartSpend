@@ -104,7 +104,7 @@ class DataImporter: ObservableObject {
             
             let dataRows = Array(lines.dropFirst())
             
-            // Detect CSV format (Notion, custom, etc.)
+            // Detect CSV format (SmartSpend or custom)
             let format = detectCSVFormat(header: header)
             print("🔍 Detected format: \(format)")
             
@@ -191,8 +191,6 @@ class DataImporter: ObservableObject {
                     }
                 }
                 
-                // Clear Notion sync date to prevent duplicates on next sync
-                NotionIntegrationManager.shared.clearLastSyncDate()
                 group.leave()
             }
             
@@ -298,23 +296,12 @@ class DataImporter: ObservableObject {
     // MARK: - Format Detection
     
     private enum CSVFormat {
-        case notion
         case custom
         case smartSpend
     }
     
     private func detectCSVFormat(header: [String]) -> CSVFormat {
         let normalizedHeader = header.map { $0.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) }
-        
-        // Notion format detection - handle "Expense(name of the expense)" format
-        if normalizedHeader.contains("expense") && normalizedHeader.contains("amount") && normalizedHeader.contains("category") && normalizedHeader.contains("date") {
-            return .notion
-        }
-        
-        // Alternative Notion format detection
-        if normalizedHeader.contains("date") && normalizedHeader.contains("title") && normalizedHeader.contains("amount") {
-            return .notion
-        }
         
         // SmartSpend format detection
         if normalizedHeader.contains("date") && normalizedHeader.contains("title") && normalizedHeader.contains("amount") && normalizedHeader.contains("category") {
@@ -330,8 +317,6 @@ class DataImporter: ObservableObject {
     
     private func parseExpenseFromRow(_ columns: [String], header: [String], format: CSVFormat) throws -> Expense {
         switch format {
-        case .notion:
-            return try parseNotionRow(columns: columns, header: header)
         case .smartSpend:
             return try parseSmartSpendRow(columns: columns, header: header)
         case .custom:
@@ -339,43 +324,6 @@ class DataImporter: ObservableObject {
         }
     }
     
-    private func parseNotionRow(columns: [String], header: [String]) throws -> Expense {
-        guard let expenseIndex = header.firstIndex(where: { $0.lowercased() == "expense" }),
-              let amountIndex = header.firstIndex(where: { $0.lowercased() == "amount" }),
-              let categoryIndex = header.firstIndex(where: { $0.lowercased() == "category" }),
-              let dateIndex = header.firstIndex(where: { $0.lowercased() == "date" }) else {
-            throw ImportError.missingColumns
-        }
-        
-        let title = columns[expenseIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-        let amountString = columns[amountIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-        let categoryString = columns[categoryIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-        let dateString = columns[dateIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        guard !title.isEmpty else {
-            print("❌ Title is empty")
-            throw ImportError.invalidData("Title is required")
-        }
-        
-        guard let amount = parseAmount(amountString) else {
-            print("❌ Failed to parse amount: '\(amountString)'")
-            throw ImportError.invalidData("Invalid amount: \(amountString)")
-        }
-        
-        guard let category = parseCategory(categoryString) else {
-            print("❌ Failed to parse category: '\(categoryString)'")
-            throw ImportError.invalidData("Invalid category: \(categoryString)")
-        }
-        
-        guard let date = parseDate(dateString) else {
-            print("❌ Failed to parse date: '\(dateString)'")
-            throw ImportError.invalidData("Invalid date: \(dateString)")
-        }
-        
-        print("✅ All fields parsed successfully - Title: \(title), Amount: \(amount), Category: \(category), Date: \(date)")
-        
-        return Expense(title: title, amount: amount, category: category, date: date)
-    }
     
     private func parseSmartSpendRow(columns: [String], header: [String]) throws -> Expense {
         guard let dateIndex = header.firstIndex(where: { $0.lowercased() == "date" }),
@@ -594,11 +542,6 @@ class DataImporter: ObservableObject {
     // Extract category string from CSV row without parsing it
     private func extractCategoryString(_ columns: [String], header: [String], format: CSVFormat) -> String? {
         switch format {
-        case .notion:
-            if let categoryIndex = header.firstIndex(where: { $0.lowercased() == "category" }),
-               categoryIndex < columns.count {
-                return columns[categoryIndex]
-            }
         case .smartSpend:
             if let categoryIndex = header.firstIndex(where: { $0.lowercased() == "category" }),
                categoryIndex < columns.count {
