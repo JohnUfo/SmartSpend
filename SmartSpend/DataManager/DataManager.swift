@@ -12,7 +12,7 @@ enum TimePeriod: String, CaseIterable {
         case .all: return "infinity"
         case .currentMonth: return "calendar"
         case .lastMonth: return "calendar.badge.clock"
-        case .customMonth: return "calendar.badge.ellipsis"
+        case .customMonth: return "calendar.badge.exclamationmark"
         }
     }
     
@@ -32,8 +32,6 @@ enum TimePeriod: String, CaseIterable {
 
 class DataManager: ObservableObject {
     static let shared = DataManager()
-    
-
     
     @Published var expenses: [Expense] = []
     @Published var user: User
@@ -645,6 +643,7 @@ class DataManager: ObservableObject {
                     title: recurringExpense.title,
                     amount: recurringExpense.amount,
                     category: recurringExpense.category,
+                    userCategoryId: recurringExpense.userCategoryId,
                     date: today
                 )
                 
@@ -763,6 +762,13 @@ class DataManager: ObservableObject {
         }
     }
     
+    func updateUserCategory(_ category: UserCategory) {
+        if let index = userCategories.firstIndex(where: { $0.id == category.id }) {
+            userCategories[index] = category
+            saveData()
+        }
+    }
+    
     func deleteUserCategory(_ category: UserCategory) {
         userCategories.removeAll { $0.id == category.id }
         saveData()
@@ -856,15 +862,35 @@ class DataManager: ObservableObject {
         }
     }
     
-    func getCategoryBreakdownForPeriod() -> [(ExpenseCategory, Double)] {
+    // Return (Category Name, Amount, Color, Icon)
+    // Supports User Categories
+    func getCategoryBreakdownForPeriod() -> [(name: String, amount: Double, color: Color, icon: String)] {
         let filteredExpenses = getFilteredExpenses()
-        var categoryTotals: [ExpenseCategory: Double] = [:]
+        var categoryTotals: [String: Double] = [:]
         
         for expense in filteredExpenses {
-            categoryTotals[expense.category, default: 0] += expense.amount
+            let name: String
+            if let userCatId = expense.userCategoryId,
+               let userCat = userCategories.first(where: { $0.id == userCatId }) {
+                name = userCat.name
+            } else {
+                name = expense.category.rawValue
+            }
+            categoryTotals[name, default: 0] += expense.amount
         }
         
-        return categoryTotals.sorted { $0.value > $1.value }
+        return categoryTotals.map { name, amount in
+            let color: Color
+            let icon: String
+            if let userCat = userCategories.first(where: { $0.name == name }) {
+                color = userCat.color
+                icon = userCat.iconSystemName
+            } else {
+                color = .gray
+                icon = "tag.fill"
+            }
+            return (name: name, amount: amount, color: color, icon: icon)
+        }.sorted { $0.amount > $1.amount }
     }
     
     func getDailyAverageForPeriod() -> Double {

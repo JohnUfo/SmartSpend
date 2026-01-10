@@ -272,6 +272,15 @@ struct RecurringExpenseRowView: View {
         selectedRecurringExpenses.contains(recurringExpense.id)
     }
     
+    // Resolve user category if present
+    private var categoryDisplayInfo: (name: String, icon: String, color: Color) {
+        if let userCategoryId = recurringExpense.userCategoryId,
+           let userCategory = dataManager.userCategories.first(where: { $0.id == userCategoryId }) {
+            return (userCategory.name, userCategory.iconSystemName, userCategory.color)
+        }
+        return (recurringExpense.category.localizedName, recurringExpense.category.icon, recurringExpense.category.color)
+    }
+    
     var body: some View {
         HStack(spacing: 12) {
             // Selection Checkbox
@@ -284,9 +293,9 @@ struct RecurringExpenseRowView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     // Category Icon
-                    Image(systemName: recurringExpense.category.icon)
+                    Image(systemName: categoryDisplayInfo.icon)
                         .font(.title3)
-                        .foregroundColor(Color(recurringExpense.category.color))
+                        .foregroundColor(categoryDisplayInfo.color)
                         .frame(width: 24)
                     
                     VStack(alignment: .leading, spacing: 2) {
@@ -295,7 +304,7 @@ struct RecurringExpenseRowView: View {
                             .fontWeight(.medium)
                             .foregroundColor(.primary)
                         
-                        Text(recurringExpense.category.localizedName)
+                        Text(categoryDisplayInfo.name)
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

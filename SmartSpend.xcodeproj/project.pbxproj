@@ -29,7 +29,6 @@
 		9E6DB8792E59C60A00476BE0 /* SmartSpendUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SmartSpendUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9E6DB8DB2E5A06A500476BE0 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		9E6DB8DD2E5A06A500476BE0 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
-		9ECE6E762E5F09F70078E62F /* SmartSpend Watch App Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "SmartSpend Watch App Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -72,13 +71,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9ECE6E732E5F09F70078E62F /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -99,7 +91,6 @@
 				9E6DB8622E59C60700476BE0 /* SmartSpend.app */,
 				9E6DB86F2E59C60A00476BE0 /* SmartSpendTests.xctest */,
 				9E6DB8792E59C60A00476BE0 /* SmartSpendUITests.xctest */,
-				9ECE6E762E5F09F70078E62F /* SmartSpend Watch App Watch AppUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -195,25 +186,6 @@
 			productReference = 9E6DB8792E59C60A00476BE0 /* SmartSpendUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		9ECE6E752E5F09F70078E62F /* SmartSpend Watch App Watch AppUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 9ECE6E882E5F09F70078E62F /* Build configuration list for PBXNativeTarget "SmartSpend Watch App Watch AppUITests" */;
-			buildPhases = (
-				9ECE6E722E5F09F70078E62F /* Sources */,
-				9ECE6E732E5F09F70078E62F /* Frameworks */,
-				9ECE6E742E5F09F70078E62F /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = "SmartSpend Watch App Watch AppUITests";
-			packageProductDependencies = (
-			);
-			productName = "SmartSpend Watch App Watch AppUITests";
-			productReference = 9ECE6E762E5F09F70078E62F /* SmartSpend Watch App Watch AppUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -234,10 +206,6 @@
 					9E6DB8782E59C60A00476BE0 = {
 						CreatedOnToolsVersion = 16.4;
 						TestTargetID = 9E6DB8612E59C60700476BE0;
-					};
-					9ECE6E752E5F09F70078E62F = {
-						CreatedOnToolsVersion = 16.4;
-						TestTargetID = 9ECE6E5C2E5F09F40078E62F;
 					};
 				};
 			};
@@ -261,7 +229,6 @@
 				9E6DB8612E59C60700476BE0 /* SmartSpend */,
 				9E6DB86E2E59C60A00476BE0 /* SmartSpendTests */,
 				9E6DB8782E59C60A00476BE0 /* SmartSpendUITests */,
-				9ECE6E752E5F09F70078E62F /* SmartSpend Watch App Watch AppUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -288,13 +255,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9ECE6E742E5F09F70078E62F /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -313,13 +273,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		9E6DB8752E59C60A00476BE0 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		9ECE6E722E5F09F70078E62F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -485,7 +438,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 2.0;
-				PRODUCT_BUNDLE_IDENTIFIER = muydinov.uz.SmartSpend;
+				PRODUCT_BUNDLE_IDENTIFIER = muydinov.SmartSpend;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -513,7 +466,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 2.0;
-				PRODUCT_BUNDLE_IDENTIFIER = muydinov.uz.SmartSpend;
+				PRODUCT_BUNDLE_IDENTIFIER = muydinov.SmartSpend;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -593,44 +546,6 @@
 			};
 			name = Release;
 		};
-		9ECE6E892E5F09F70078E62F /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4R72PTT5ZJ;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "muydinov.uz.SmartSpend-Watch-App-Watch-AppUITests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = watchos;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				TEST_TARGET_NAME = "SmartSpend Watch App Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 11.5;
-			};
-			name = Debug;
-		};
-		9ECE6E8A2E5F09F70078E62F /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4R72PTT5ZJ;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "muydinov.uz.SmartSpend-Watch-App-Watch-AppUITests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = watchos;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				TEST_TARGET_NAME = "SmartSpend Watch App Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 11.5;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -666,15 +581,6 @@
 			buildConfigurations = (
 				9E6DB88A2E59C60A00476BE0 /* Debug */,
 				9E6DB88B2E59C60A00476BE0 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		9ECE6E882E5F09F70078E62F /* Build configuration list for PBXNativeTarget "SmartSpend Watch App Watch AppUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				9ECE6E892E5F09F70078E62F /* Debug */,
-				9ECE6E8A2E5F09F70078E62F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

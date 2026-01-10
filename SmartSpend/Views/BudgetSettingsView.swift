@@ -15,7 +15,7 @@ struct BudgetSettingsView: View {
             Form {
                 // Category Budgets Section
                 Section {
-                    ForEach([ExpenseCategory.food, .transportation, .shopping, .bills, .entertainment, .other], id: \.self) { category in
+                    ForEach([ExpenseCategory.other], id: \.self) { category in
                         CategoryBudgetSettingRow(category: category)
                     }
                 } header: {

@@ -77,7 +77,12 @@ struct DataImportView: View {
                 DocumentPicker(selectedURL: $selectedFileURL, onFileSelected: handleFileSelection)
             }
             .alert("import_status".localized, isPresented: $showingAlert) {
-                Button("ok".localized) { }
+                Button("ok".localized) {
+                    // Only dismiss if import was successful
+                    if case .success = importResult {
+                        dismiss()
+                    }
+                }
             } message: {
                 Text(alertMessage)
             }
@@ -302,14 +307,10 @@ struct DataImportView: View {
     // MARK: - File Selection Handler
     
     private func handleFileSelection(_ url: URL) {
-        print("🔍 Selected file: \(url.lastPathComponent)")
-        print("🔍 File path: \(url.path)")
-        
         selectedFileURL = url
         
         // Start security-scoped resource access
         guard url.startAccessingSecurityScopedResource() else {
-            print("❌ Failed to access security-scoped resource")
             alertMessage = "cannot_access_file".localized
             showingAlert = true
             return
@@ -326,11 +327,9 @@ struct DataImportView: View {
     private func previewFile(url: URL) {
         if let preview = importer.previewCSVImport(fileURL: url) {
             previewData = preview
-            print("✅ Preview successful: \(preview.totalRows) rows detected")
         } else {
             alertMessage = "cannot_read_file_debug".localized
             showingAlert = true
-            print("❌ Preview failed - check console for details")
         }
     }
     
@@ -339,36 +338,49 @@ struct DataImportView: View {
     private func performImport() {
         guard let fileURL = selectedFileURL else { return }
         
+        print("Starting import process for file: \(fileURL.lastPathComponent)")
         isImporting = true
         
         DispatchQueue.global(qos: .userInitiated).async {
+            print("Running import in background thread...")
             let result = importer.importFromCSV(fileURL: fileURL, dataManager: dataManager)
+            print("Import finished with result: \(result)")
             
             DispatchQueue.main.async {
+                print("Updating UI on main thread...")
                 isImporting = false
                 importResult = result
                 
                 switch result {
                 case .success(let importedCount, let skippedCount, let errors):
+                    print("Import success! Imported: \(importedCount), Skipped: \(skippedCount), Errors: \(errors.count)")
+                    // Count how many expenses were categorized as "other" (problem expenses)
+                    let problemCount = dataManager.expenses.filter { $0.category == .other }.count
+                    
                     if errors.isEmpty {
-                        alertMessage = String(format: "import_success_count".localized, importedCount)
+                        var message = String(format: "import_success_count".localized, importedCount)
+                        if problemCount > 0 {
+                            message += "\n\n" + String(format: "check_problem_expenses_hint".localized, problemCount)
+                        }
+                        alertMessage = message
                     } else {
-                        alertMessage = String(format: "import_partial_with_errors".localized, importedCount, skippedCount)
-                        print("Import errors: \(errors)")
+                        var message = String(format: "import_partial_with_errors".localized, importedCount, skippedCount)
+                        if problemCount > 0 {
+                            message += "\n\n" + String(format: "check_problem_expenses_hint".localized, problemCount)
+                        }
+                        alertMessage = message
+                        print("Import errors (showing first 5):")
+                        for error in errors.prefix(5) {
+                            print("  - \(error)")
+                        }
                     }
                     
                 case .failure(let error):
+                    print("Import failure: \(error)")
                     alertMessage = String(format: "import_failed_error".localized, String(describing: error))
                 }
                 
                 showingAlert = true
-                
-                // Dismiss after successful import
-                if case .success(let importedCount, _, _) = result, importedCount > 0 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        dismiss()
-                    }
-                }
             }
         }
     }

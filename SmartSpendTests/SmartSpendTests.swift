@@ -22,13 +22,13 @@ struct SmartSpendTests {
         let expense = Expense(
             title: "Test Expense",
             amount: 100.0,
-            category: .food,
+            category: .other,
             date: Date()
         )
         
         #expect(expense.title == "Test Expense")
         #expect(expense.amount == 100.0)
-        #expect(expense.category == .food)
+        #expect(expense.category == .other)
         #expect(expense.id != nil)
     }
     

@@ -48,7 +48,6 @@ class DataImporter: ObservableObject {
     func importFromCSV(fileURL: URL, dataManager: DataManager) -> ImportResult {
         // Start accessing the security-scoped resource
         guard fileURL.startAccessingSecurityScopedResource() else {
-            print("❌ Failed to access security-scoped resource")
             return .failure(error: "Failed to access file")
         }
         
@@ -57,8 +56,6 @@ class DataImporter: ObservableObject {
         }
         
         do {
-            print("🔍 Starting CSV import from: \(fileURL.lastPathComponent)")
-            
             // Try multiple encodings to handle different CSV formats
             let encodings: [String.Encoding] = [.utf8, .utf16, .ascii, .isoLatin1]
             var csvContent: String?
@@ -66,13 +63,11 @@ class DataImporter: ObservableObject {
             for encoding in encodings {
                 if let content = try? String(contentsOf: fileURL, encoding: encoding) {
                     csvContent = content
-                    print("✅ Successfully read file with encoding: \(encoding)")
                     break
                 }
             }
             
             guard let content = csvContent else {
-                print("❌ Failed to read CSV file with any supported encoding")
                 return .failure(error: "Failed to read file - unsupported encoding")
             }
             
@@ -86,19 +81,21 @@ class DataImporter: ObservableObject {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
             
-            print("📊 Found \(lines.count) non-empty lines in CSV")
-            
             guard lines.count > 1 else {
-                print("❌ CSV file has insufficient data")
                 return .failure(error: "CSV file is empty or has no data rows")
             }
             
+            // Detect separator (comma or semicolon)
+            let headerLine = lines[0]
+            // Heuristic: If there are semicolons but no commas, assume semicolon separator
+            let separator: Character = headerLine.contains(";") && !headerLine.contains(",") ? ";" : ","
+            print("📝 Detected Separator: '\(separator)'")
+            
             // Parse header to understand column structure
-            let header = parseCSVRow(lines[0])
-            print("📋 Parsed headers: \(header)")
+            let header = parseCSVRow(headerLine, separator: separator)
+            print("📝 CSV Header: \(header)")
             
             guard !header.isEmpty else {
-                print("❌ Could not parse CSV header")
                 return .failure(error: "Invalid CSV header")
             }
             
@@ -106,7 +103,7 @@ class DataImporter: ObservableObject {
             
             // Detect CSV format (SmartSpend or custom)
             let format = detectCSVFormat(header: header)
-            print("🔍 Detected format: \(format)")
+            print("📝 Detected Format: \(format)")
             
             var importedCount = 0
             var skippedCount = 0
@@ -115,67 +112,93 @@ class DataImporter: ObservableObject {
             var foundCategories: Set<String> = []
             
             // First pass: collect all categories from the CSV
-            for (_, row) in dataRows.enumerated() {
+            print("🔄 First Pass: Collecting categories...")
+            for row in dataRows {
                 if row.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     continue
                 }
                 
-                let parsedColumns = parseCSVRow(row)
+                let parsedColumns = parseCSVRow(row, separator: separator)
                 if let categoryString = extractCategoryString(parsedColumns, header: header, format: format) {
                     let normalized = categoryString.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !normalized.isEmpty {
+                    
+                    // Safety check: Don't treat dates as categories
+                    // This prevents the error where a date column is misidentified as a category
+                    if !normalized.isEmpty && parseDate(normalized) == nil {
                         foundCategories.insert(normalized)
                     }
                 }
             }
+            print("📝 Found \(foundCategories.count) unique categories: \(foundCategories)")
+            
+            // Sync with DataManager to create categories and get IDs
+            // We need a map of category name -> UserCategory ID
+            var categoryMap: [String: UUID] = [:]
+            let semaphore = DispatchSemaphore(value: 0)
+            
+            DispatchQueue.main.async {
+                print("🔄 Syncing categories with DataManager...")
+                for categoryName in foundCategories {
+                    let normalized = categoryName.lowercased()
+                    
+                    // Check if it matches an existing built-in ExpenseCategory
+                    let matchesExpenseCategory = ExpenseCategory.allCases.contains { $0.rawValue.lowercased() == normalized }
+                    
+                    if !matchesExpenseCategory {
+                        // Check if UserCategory already exists
+                        if let existingCategory = dataManager.userCategories.first(where: { $0.name.lowercased() == normalized }) {
+                            categoryMap[normalized] = existingCategory.id
+                            print("   Mapped '\(categoryName)' to existing user category")
+                        } else {
+                            // Create new UserCategory
+                            let newUserCategory = UserCategory(name: categoryName)
+                            dataManager.addUserCategory(newUserCategory)
+                            categoryMap[normalized] = newUserCategory.id
+                            print("   Created new user category for '\(categoryName)'")
+                        }
+                    } else {
+                        // It matches a built-in category, so we don't need a UserCategory ID
+                        // but we rely on ExpenseCategory enum
+                    }
+                }
+                semaphore.signal()
+            }
+            
+            semaphore.wait()
             
             // Second pass: parse and create expenses
+            print("🔄 Second Pass: Parsing expenses...")
             for (index, row) in dataRows.enumerated() {
                 if row.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     continue
                 }
                 
                 do {
-                    let parsedColumns = parseCSVRow(row)
-                    let expense = try parseExpenseFromRow(parsedColumns, header: header, format: format)
+                    let parsedColumns = parseCSVRow(row, separator: separator)
+                    let expense = try parseExpenseFromRow(parsedColumns, header: header, format: format, categoryMap: categoryMap)
                     expensesToAdd.append(expense)
                     importedCount += 1
                 } catch {
-                    let errorMessage = "Row \(index + 2): \(error.localizedDescription)"
+                    let parsedColumns = parseCSVRow(row, separator: separator)
+                    let rowPreview = parsedColumns.prefix(3).joined(separator: ", ")
+                    let errorMessage = "Row \(index + 2) [\(rowPreview)...]: \(error.localizedDescription)"
                     errors.append(errorMessage)
                     skippedCount += 1
-                }
-            }
-            
-            // Use DispatchGroup to wait for all async work to complete
-            let group = DispatchGroup()
-            
-            // Create UserCategories for categories that don't match ExpenseCategory
-            group.enter()
-            DispatchQueue.main.async {
-                for categoryName in foundCategories {
-                    let normalized = categoryName.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
                     
-                    // Check if it matches an existing ExpenseCategory
-                    let matchesExpenseCategory = ExpenseCategory.allCases.contains { $0.rawValue.lowercased() == normalized }
-                    
-                    // Check if UserCategory already exists
-                    let userCategoryExists = dataManager.userCategories.contains { $0.name.lowercased() == normalized }
-                    
-                    if !matchesExpenseCategory && !userCategoryExists {
-                        let newUserCategory = UserCategory(name: categoryName)
-                        dataManager.addUserCategory(newUserCategory)
-                        print("✅ Created UserCategory: \(categoryName)")
+                    // Only print first 5 errors for debugging
+                    if skippedCount <= 5 {
+                        print("❌ Import Error on row \(index + 2): \(error.localizedDescription)")
                     }
                 }
-                group.leave()
             }
             
             // Add all expenses on main thread
+            let group = DispatchGroup()
             group.enter()
+            
             DispatchQueue.main.async {
+                print("🔄 Adding \(expensesToAdd.count) expenses to DataManager...")
                 // Add expenses in batches to improve performance
-                // Process in chunks to avoid blocking the UI too long
                 let chunkSize = 100
                 for chunkStart in stride(from: 0, to: expensesToAdd.count, by: chunkSize) {
                     let chunkEnd = min(chunkStart + chunkSize, expensesToAdd.count)
@@ -199,20 +222,8 @@ class DataImporter: ObservableObject {
             
             print("✅ Import completed: \(importedCount) imported, \(skippedCount) skipped")
             
-            // Show detailed error information
-            if !errors.isEmpty {
-                print("⚠️ Skipped rows details:")
-                let errorCounts = Dictionary(grouping: errors, by: { $0 })
-                    .mapValues { $0.count }
-                    .sorted { $0.value > $1.value }
-                
-                for (error, count) in errorCounts.prefix(10) {
-                    print("   \(count)x: \(error)")
-                }
-                
-                if errorCounts.count > 10 {
-                    print("   ... and \(errorCounts.count - 10) more error types")
-                }
+            if skippedCount > 5 {
+                print("   (Showing only first 5 errors in console)")
             }
             
             return .success(importedCount: importedCount, skippedCount: skippedCount, errors: errors)
@@ -224,7 +235,6 @@ class DataImporter: ObservableObject {
     func previewCSVImport(fileURL: URL) -> (headers: [String], sampleRows: [[String]], totalRows: Int)? {
         // Start accessing the security-scoped resource
         guard fileURL.startAccessingSecurityScopedResource() else {
-            print("❌ Failed to access security-scoped resource")
             return nil
         }
         
@@ -232,29 +242,20 @@ class DataImporter: ObservableObject {
             fileURL.stopAccessingSecurityScopedResource()
         }
         
-        print("🔍 Starting preview for: \(fileURL.lastPathComponent)")
-        
         // Try multiple encodings to handle different CSV formats
         let encodings: [String.Encoding] = [.utf8, .utf16, .ascii, .isoLatin1]
         var csvContent: String?
         
         for encoding in encodings {
-            print("🔍 Trying encoding: \(encoding)")
             if let content = try? String(contentsOf: fileURL, encoding: encoding) {
                 csvContent = content
-                print("✅ Successfully read with encoding: \(encoding)")
                 break
-            } else {
-                print("❌ Failed with encoding: \(encoding)")
             }
         }
         
         guard let content = csvContent else {
-            print("❌ Could not read file with any encoding")
             return nil
         }
-        
-        print("📄 Raw content length: \(content.count) characters")
         
         // Clean up the content - remove BOM and normalize line endings
         let cleanedContent = content
@@ -262,33 +263,29 @@ class DataImporter: ObservableObject {
             .replacingOccurrences(of: "\r\n", with: "\n") // Normalize line endings
             .replacingOccurrences(of: "\r", with: "\n")
         
-        print("🧹 Cleaned content length: \(cleanedContent.count) characters")
-        
         let lines = cleanedContent.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         
-        print("📊 Non-empty lines found: \(lines.count)")
-        
         guard lines.count > 1 else {
-            print("❌ CSV file has insufficient data")
             return nil
         }
         
+        // Detect separator (comma or semicolon)
+        let headerLine = lines[0]
+        let separator: Character = headerLine.contains(";") && !headerLine.contains(",") ? ";" : ","
+        
         // Parse header
-        let header = parseCSVRow(lines[0])
-        print("📋 Parsed headers: \(header)")
+        let header = parseCSVRow(headerLine, separator: separator)
         
         guard !header.isEmpty else {
-            print("❌ Could not parse CSV header")
             return nil
         }
         
         let dataRows = Array(lines.dropFirst())
-        print("📊 Data rows found: \(dataRows.count)")
         
         // Take first 5 rows as sample
-        let sampleRows = Array(dataRows.prefix(5)).map { parseCSVRow($0) }
+        let sampleRows = Array(dataRows.prefix(5)).map { parseCSVRow($0, separator: separator) }
         
         return (headers: header, sampleRows: sampleRows, totalRows: dataRows.count)
     }
@@ -315,17 +312,17 @@ class DataImporter: ObservableObject {
     
     // MARK: - Helper Methods
     
-    private func parseExpenseFromRow(_ columns: [String], header: [String], format: CSVFormat) throws -> Expense {
+    private func parseExpenseFromRow(_ columns: [String], header: [String], format: CSVFormat, categoryMap: [String: UUID]) throws -> Expense {
         switch format {
         case .smartSpend:
-            return try parseSmartSpendRow(columns: columns, header: header)
+            return try parseSmartSpendRow(columns: columns, header: header, categoryMap: categoryMap)
         case .custom:
-            return try parseCustomRow(columns: columns, header: header)
+            return try parseCustomRow(columns: columns, header: header, categoryMap: categoryMap)
         }
     }
     
     
-    private func parseSmartSpendRow(columns: [String], header: [String]) throws -> Expense {
+    private func parseSmartSpendRow(columns: [String], header: [String], categoryMap: [String: UUID]) throws -> Expense {
         guard let dateIndex = header.firstIndex(where: { $0.lowercased() == "date" }),
               let titleIndex = header.firstIndex(where: { $0.lowercased() == "title" }),
               let amountIndex = header.firstIndex(where: { $0.lowercased() == "amount" }),
@@ -333,69 +330,102 @@ class DataImporter: ObservableObject {
             throw ImportError.missingColumns
         }
         
+        // Check if columns array has enough elements
+        guard columns.count > max(dateIndex, titleIndex, amountIndex, categoryIndex) else {
+            throw ImportError.invalidData("Row has insufficient columns (expected \(header.count), got \(columns.count))")
+        }
+        
         let title = columns[titleIndex].trimmingCharacters(in: .whitespacesAndNewlines)
         let amountString = columns[amountIndex].trimmingCharacters(in: .whitespacesAndNewlines)
         let categoryString = columns[categoryIndex].trimmingCharacters(in: .whitespacesAndNewlines)
         let dateString = columns[dateIndex].trimmingCharacters(in: .whitespacesAndNewlines)
         
-        guard !title.isEmpty else {
-            throw ImportError.invalidData("Title is required")
-        }
-        
         guard let amount = parseAmount(amountString) else {
-            throw ImportError.invalidData("Invalid amount: \(amountString)")
+            throw ImportError.invalidData("Invalid amount: '\(amountString)'")
         }
         
-        guard let category = parseCategory(categoryString) else {
-            throw ImportError.invalidData("Invalid category: \(categoryString)")
-        }
+        let date = parseDate(dateString) ?? Date()
         
-        guard let date = parseDate(dateString) else {
-            throw ImportError.invalidData("Invalid date: \(dateString)")
-        }
+        // Parse category and find/assign userCategoryId
+        let (category, userCategoryId) = parseCategoryWithMap(categoryString, categoryMap: categoryMap)
         
-        return Expense(title: title, amount: amount, category: category, date: date)
+        // Title is allowed to be empty now - will be flagged as problem expense
+        return Expense(title: title, amount: amount, category: category, userCategoryId: userCategoryId, date: date)
     }
     
-    private func parseCustomRow(columns: [String], header: [String]) throws -> Expense {
+    private func parseCustomRow(columns: [String], header: [String], categoryMap: [String: UUID]) throws -> Expense {
         // Try to intelligently map columns
         var title = ""
         var amount: Double = 0
         var date = Date()
-        var category: ExpenseCategory = .food
+        var categoryString = ""
+        
+        // First, try to match columns using header names
+        var foundTitle = false
+        var foundAmount = false
         
         for (index, columnName) in header.enumerated() {
             guard index < columns.count else { break }
             
             let value = columns[index].trimmingCharacters(in: .whitespacesAndNewlines)
+            let lowerColName = columnName.lowercased()
             
             // Try to match column names
-            if columnName.lowercased().contains("title") || columnName.lowercased().contains("name") || columnName.lowercased().contains("description") {
+            if lowerColName.contains("title") || lowerColName.contains("name") || lowerColName.contains("description") {
                 title = value
-            } else if columnName.lowercased().contains("amount") || columnName.lowercased().contains("price") || columnName.lowercased().contains("cost") {
+                foundTitle = true
+            } else if lowerColName.contains("amount") || lowerColName.contains("price") || lowerColName.contains("cost") {
                 if let parsedAmount = parseAmount(value) {
                     amount = parsedAmount
+                    foundAmount = true
                 }
-            } else if columnName.lowercased().contains("date") {
+            } else if lowerColName.contains("date") {
                 if let parsedDate = parseDate(value) {
                     date = parsedDate
                 }
-            } else if columnName.lowercased().contains("category") || columnName.lowercased().contains("type") {
-                if let parsedCategory = parseCategory(value) {
-                    category = parsedCategory
-                }
+            } else if lowerColName.contains("category") || lowerColName.contains("type") {
+                categoryString = value
             }
         }
         
-        guard !title.isEmpty else {
-            throw ImportError.invalidData("Title is required")
+        // If we couldn't find columns by header name, try positional parsing
+        // Common formats: [title, amount, category, date] or [title, amount, date, category]
+        if !foundTitle || !foundAmount {
+            if columns.count >= 4 {
+                // Try to parse as [title, amount, category, date]
+                let col0 = columns[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                let col1 = columns[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                let col2 = columns[2].trimmingCharacters(in: .whitespacesAndNewlines)
+                let col3 = columns[3].trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                // Check if col1 looks like an amount
+                if let parsedAmount = parseAmount(col1), parsedAmount > 0 {
+                    title = col0
+                    amount = parsedAmount
+                    
+                    // Try to determine if col2 is category or date
+                    if parseDate(col2) != nil {
+                        // col2 is date, col3 might be category
+                        date = parseDate(col2) ?? Date()
+                        categoryString = col3
+                    } else {
+                        // col2 is probably category, col3 should be date
+                        categoryString = col2
+                        date = parseDate(col3) ?? Date()
+                    }
+                }
+            }
         }
         
         guard amount > 0 else {
             throw ImportError.invalidData("Amount must be greater than zero")
         }
         
-        return Expense(title: title, amount: amount, category: category, date: date)
+        // Parse category and find/assign userCategoryId
+        let (category, userCategoryId) = parseCategoryWithMap(categoryString, categoryMap: categoryMap)
+        
+        // Title is allowed to be empty now - will be flagged as problem expense
+        return Expense(title: title, amount: amount, category: category, userCategoryId: userCategoryId, date: date)
     }
     
     enum ImportError: Error, LocalizedError {
@@ -412,7 +442,7 @@ class DataImporter: ObservableObject {
         }
     }
     
-    private func parseCSVRow(_ row: String) -> [String] {
+    private func parseCSVRow(_ row: String, separator: Character = ",") -> [String] {
         var columns: [String] = []
         var currentColumn = ""
         var insideQuotes = false
@@ -438,7 +468,7 @@ class DataImporter: ObservableObject {
                     continue
                 }
                 insideQuotes.toggle()
-            } else if char == "," && !insideQuotes {
+            } else if char == separator && !insideQuotes {
                 columns.append(currentColumn.trimmingCharacters(in: .whitespaces))
                 currentColumn = ""
             } else {
@@ -460,76 +490,141 @@ class DataImporter: ObservableObject {
     }
     
     private func parseAmount(_ value: String) -> Double? {
-        // Remove currency symbols, commas, and spaces
-        let cleaned = value.replacingOccurrences(of: "[^0-9.-]", with: "", options: .regularExpression)
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // Handle empty or invalid values
-        guard !cleaned.isEmpty else { return nil }
+        // Handle empty values
+        guard !trimmed.isEmpty else {
+            return nil
+        }
         
-        let amount = Double(cleaned)
+        // Remove currency symbols, commas, spaces, and keep only numbers, dots, and minus
+        var cleaned = trimmed
         
-        // Validate amount is positive
-        guard let validAmount = amount, validAmount > 0 else { return nil }
+        // Handle common currency symbols
+        cleaned = cleaned.replacingOccurrences(of: "$", with: "")
+        cleaned = cleaned.replacingOccurrences(of: "€", with: "")
+        cleaned = cleaned.replacingOccurrences(of: "£", with: "")
+        cleaned = cleaned.replacingOccurrences(of: "¥", with: "")
+        cleaned = cleaned.replacingOccurrences(of: "₽", with: "")
+        cleaned = cleaned.replacingOccurrences(of: "₹", with: "")
+        cleaned = cleaned.replacingOccurrences(of: ",", with: "")
+        cleaned = cleaned.replacingOccurrences(of: " ", with: "")
+        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        return validAmount
+        // Handle parentheses for negative numbers (accounting format)
+        if cleaned.hasPrefix("(") && cleaned.hasSuffix(")") {
+            cleaned = "-" + cleaned.dropFirst().dropLast()
+        }
+        
+        // Keep only numbers, dots, and minus
+        cleaned = cleaned.replacingOccurrences(of: "[^0-9.-]", with: "", options: .regularExpression)
+        
+        // Handle empty after cleaning
+        guard !cleaned.isEmpty else {
+            return nil
+        }
+        
+        // Try to parse as double
+        guard let amount = Double(cleaned) else {
+            return nil
+        }
+        
+        // Take absolute value (amounts are always positive in expenses)
+        let positiveAmount = abs(amount)
+        
+        // Validate amount is not zero
+        guard positiveAmount > 0 else {
+            return nil
+        }
+        
+        return positiveAmount
     }
     
     private func parseDate(_ value: String) -> Date? {
         let cleanedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // Debug logging
-        print("🔍 Parsing date: '\(cleanedValue)'")
+        // If empty, use today's date as fallback
+        if cleanedValue.isEmpty {
+            return nil
+        }
+        
+        // Try numeric timestamp first (Unix timestamp in seconds or milliseconds)
+        if let timestamp = Double(cleanedValue) {
+            // Very rough check to ensure it's not just a small number like "1" or "10"
+            if timestamp > 1_000_000_000 {
+                if timestamp > 1_000_000_000_000 {
+                    // Milliseconds
+                    return Date(timeIntervalSince1970: timestamp / 1000)
+                } else {
+                    // Seconds
+                    return Date(timeIntervalSince1970: timestamp)
+                }
+            }
+        }
         
         let formatters: [DateFormatter] = [
+            // Most common formats first
             createDateFormatter("yyyy-MM-dd"),
             createDateFormatter("MM/dd/yyyy"),
             createDateFormatter("dd/MM/yyyy"),
-            createDateFormatter("yyyy-MM-dd HH:mm:ss"),
-            createDateFormatter("MM/dd/yyyy HH:mm:ss"),
+            createDateFormatter("M/d/yyyy"),
+            createDateFormatter("d/M/yyyy"),
+            createDateFormatter("yyyy/MM/dd"),
             createDateFormatter("dd-MM-yyyy"),
             createDateFormatter("dd.MM.yyyy"),
             createDateFormatter("MM-dd-yyyy"),
-            createDateFormatter("yyyy/MM/dd"),
-            createDateFormatter("dd/MM/yyyy"),
+            createDateFormatter("M-d-yyyy"),
+            createDateFormatter("d-M-yyyy"),
+            createDateFormatter("yyyy.MM.dd"),
+            // With times
+            createDateFormatter("yyyy-MM-dd HH:mm:ss"),
+            createDateFormatter("MM/dd/yyyy HH:mm:ss"),
+            createDateFormatter("dd/MM/yyyy HH:mm:ss"),
+            createDateFormatter("M/d/yyyy HH:mm:ss"),
+            createDateFormatter("yyyy-MM-dd HH:mm"),
+            createDateFormatter("MM/dd/yyyy HH:mm"),
+            // ISO formats
             createDateFormatter("yyyy-MM-dd'T'HH:mm:ss"),
             createDateFormatter("yyyy-MM-dd'T'HH:mm:ss.SSS"),
             createDateFormatter("yyyy-MM-dd'T'HH:mm:ss'Z'"),
-            createDateFormatter("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+            createDateFormatter("yyyy-MM-dd'T'HH:mm:ss.SSSZ"),
+            createDateFormatter("yyyy-MM-dd'T'HH:mm:ssZ")
         ]
         
-        for (index, formatter) in formatters.enumerated() {
+        for formatter in formatters {
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone.current
             if let date = formatter.date(from: cleanedValue) {
-                print("✅ Date parsed successfully with formatter \(index): \(date)")
                 return date
             }
         }
         
-        // Try parsing with relative date strings
-        let relativeFormatters: [DateFormatter] = [
+        // Try parsing with locale-aware date strings
+        let localeFormatters: [DateFormatter] = [
             createDateFormatter("MMM dd, yyyy"),
             createDateFormatter("MMMM dd, yyyy"),
             createDateFormatter("dd MMM yyyy"),
             createDateFormatter("dd MMMM yyyy"),
             createDateFormatter("MMM dd yyyy"),
-            createDateFormatter("MMMM dd yyyy")
+            createDateFormatter("MMMM dd yyyy"),
+            createDateFormatter("dd-MMM-yyyy"),
+            createDateFormatter("dd.MMM.yyyy")
         ]
         
-        for (index, formatter) in relativeFormatters.enumerated() {
+        for formatter in localeFormatters {
             formatter.locale = Locale(identifier: "en_US")
             if let date = formatter.date(from: cleanedValue) {
-                print("✅ Date parsed successfully with relative formatter \(index): \(date)")
                 return date
             }
         }
         
         // Try ISO8601DateFormatter for ISO format dates
         let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = isoFormatter.date(from: cleanedValue) {
-            print("✅ Date parsed successfully with ISO8601: \(date)")
             return date
         }
         
-        print("❌ Failed to parse date: '\(cleanedValue)'")
         return nil
     }
     
@@ -556,38 +651,30 @@ class DataImporter: ObservableObject {
         return nil
     }
     
-    private func parseCategory(_ value: String) -> ExpenseCategory? {
-        let normalized = value.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+    private func parseCategoryWithMap(_ categoryString: String, categoryMap: [String: UUID]) -> (ExpenseCategory, UUID?) {
+        let normalized = categoryString.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // Handle empty categories - default to "other"
         if normalized.isEmpty {
-            return .other
+            return (.other, nil)
         }
         
-        // Try exact match with our ExpenseCategory enum first
+        // Validation: If the category string parses as a valid date, it's likely a mapping error
+        if parseDate(categoryString) != nil {
+            print("⚠️ Warning: Category value '\(categoryString)' looks like a date. Ignoring to prevent miscategorization.")
+            return (.other, nil)
+        }
+        
+        // Check if it matches a built-in category
         if let exactMatch = ExpenseCategory.allCases.first(where: { $0.rawValue.lowercased() == normalized }) {
-            return exactMatch
+            return (exactMatch, nil)
         }
         
-        // Map common category names to our categories
-        switch normalized {
-        case "food", "restaurant", "dining", "groceries", "meal", "cafe":
-            return .food
-        case "transport", "transportation", "uber", "lyft", "gas", "fuel", "taxi", "bus", "metro", "subway":
-            return .transportation
-        case "shopping", "clothes", "fashion", "retail", "store", "market":
-            return .shopping
-        case "entertainment", "movie", "game", "fun", "cinema", "theater", "concert":
-            return .entertainment
-        case "health", "healthcare", "medical", "pharmacy", "doctor", "hospital":
-            return .health
-        case "bills", "utilities", "electricity", "rent", "home", "house", "apartment":
-            return .bills
-        case "education", "school", "course", "book", "university", "college", "study":
-            return .education
-        default:
-            // For unknown categories, return "other" - but UserCategory will be created separately
-            return .other
+        // Look up the UserCategory ID from the map
+        if let id = categoryMap[normalized] {
+            return (.other, id)
         }
+        
+        print("⚠️ Warning: Category '\(categoryString)' (normalized: '\(normalized)') not found in map or built-in categories. Falling back to Other.")
+        return (.other, nil)
     }
 }

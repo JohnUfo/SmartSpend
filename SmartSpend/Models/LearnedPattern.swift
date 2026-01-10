@@ -58,7 +58,7 @@ struct LearnedPattern: Identifiable, Codable {
     
     // Get the most used category
     var mostUsedCategory: ExpenseCategory {
-        return categoryFrequencies.max(by: { $0.frequency < $1.frequency })?.category ?? .food
+        return categoryFrequencies.max(by: { $0.frequency < $1.frequency })?.category ?? .other
     }
     
     // Get category confidence score (0.0 to 1.0)

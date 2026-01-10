@@ -6,11 +6,6 @@ struct DashboardView: View {
     @State private var showingAddExpense = false
     @State private var showingCustomMonthPicker = false
     
-    private var categoryTotalsForPeriod: [ExpenseCategory: Double] {
-        let breakdown = dataManager.getCategoryBreakdownForPeriod()
-        return Dictionary(breakdown, uniquingKeysWith: { $0 + $1 })
-    }
-    
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -124,7 +119,7 @@ struct DashboardView: View {
     
     private var categoryBreakdownSection: some View {
         CategoryBreakdownView(
-            categoryTotals: categoryTotalsForPeriod
+            breakdown: dataManager.getCategoryBreakdownForPeriod()
         )
         .padding(.horizontal)
     }
@@ -354,12 +349,14 @@ struct BudgetDetailsView: View {
             }
             
             LazyVStack(spacing: 12) {
-                ForEach(dataManager.getCategoryBreakdownForPeriod().prefix(5), id: \.0) { category, amount in
+                ForEach(dataManager.getCategoryBreakdownForPeriod().prefix(5), id: \.name) { item in
                     CategoryBreakdownRow(
-                        category: category,
-                        amount: amount,
+                        name: item.name,
+                        amount: item.amount,
                         total: dataManager.getTotalExpensesForPeriod(),
-                        currency: dataManager.user.currency
+                        currency: dataManager.user.currency,
+                        color: item.color,
+                        icon: item.icon
                     )
                 }
             }
@@ -415,10 +412,12 @@ struct SpendingTrendsView: View {
 }
 
 struct CategoryBreakdownRow: View {
-    let category: ExpenseCategory
+    let name: String
     let amount: Double
     let total: Double
     let currency: Currency
+    let color: Color
+    let icon: String
     
     private var percentage: Double {
         guard total > 0 else { return 0 }
@@ -427,13 +426,13 @@ struct CategoryBreakdownRow: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: category.icon)
-                .foregroundStyle(category.color)
+            Image(systemName: icon)
+                .foregroundStyle(color)
                 .font(.title3)
                 .frame(width: 32, height: 32)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(category.localizedName)
+                Text(name)
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(.primary)
@@ -638,11 +637,7 @@ struct BudgetStatView: View {
 }
 
 struct CategoryBreakdownView: View {
-    let categoryTotals: [ExpenseCategory: Double]
-    
-    var sortedCategories: [(ExpenseCategory, Double)] {
-        categoryTotals.sorted { $0.value > $1.value }
-    }
+    let breakdown: [(name: String, amount: Double, color: Color, icon: String)]
     
     var body: some View {
         VStack(spacing: 16) {
@@ -654,7 +649,7 @@ struct CategoryBreakdownView: View {
                 Spacer()
             }
             
-            if sortedCategories.isEmpty {
+            if breakdown.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "chart.bar.xaxis")
                         .font(.system(size: 40))
@@ -668,8 +663,13 @@ struct CategoryBreakdownView: View {
                 .padding(.vertical, 24)
             } else {
                 LazyVStack(spacing: 12) {
-                    ForEach(sortedCategories.prefix(5), id: \.0) { category, amount in
-                        CategoryRowView(category: category, amount: amount)
+                    ForEach(breakdown.prefix(5), id: \.name) { item in
+                        CategoryRowView(
+                            name: item.name,
+                            amount: item.amount,
+                            color: item.color,
+                            icon: item.icon
+                        )
                     }
                 }
             }
@@ -682,19 +682,21 @@ struct CategoryBreakdownView: View {
 }
 
 struct CategoryRowView: View {
-    let category: ExpenseCategory
+    let name: String
     let amount: Double
+    let color: Color
+    let icon: String
     @ObservedObject private var dataManager = DataManager.shared
     
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: category.icon)
-                .foregroundStyle(category.color)
+            Image(systemName: icon)
+                .foregroundStyle(color)
                 .font(.title3)
                 .frame(width: 36, height: 36)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(category.localizedName)
+                Text(name)
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(.primary)

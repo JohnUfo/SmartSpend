@@ -33,7 +33,7 @@ struct MonthlySalaryView: View {
                         .frame(maxWidth: .infinity)
                         
                         Picker("year".localized, selection: $selectedYear) {
-                            ForEach(2020...2030, id: \.self) { year in
+                            ForEach(2000...2100, id: \.self) { year in
                                 Text(String(format: "%d", year))
                                     .font(.title3)
                                     .tag(year)

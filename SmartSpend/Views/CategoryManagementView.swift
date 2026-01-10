@@ -84,7 +84,7 @@ struct CategoryManagementView: View {
                             .fontWeight(.semibold)
                             .padding(.horizontal, 4)
                         
-                        ForEach([ExpenseCategory.food, .transportation, .shopping, .bills, .entertainment, .other], id: \.self) { category in
+                        ForEach([ExpenseCategory.other], id: \.self) { category in
                             defaultCategoryRow(category)
                         }
                     }

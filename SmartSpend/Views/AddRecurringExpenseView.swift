@@ -6,7 +6,7 @@ struct AddRecurringExpenseView: View {
     
     @State private var title = ""
     @State private var amount = ""
-    @State private var selectedCategory: ExpenseCategory = .food
+    @State private var selectedCategory: ExpenseCategory = .other
     @State private var selectedUserCategory: UserCategory? = nil
     @State private var selectedRecurrence: RecurrenceType = .monthly
     @State private var startDate = Date()
@@ -15,7 +15,7 @@ struct AddRecurringExpenseView: View {
     @State private var isActive = true
     @State private var showingCategoryManagement = false
     
-    private let mainCategories: [ExpenseCategory] = [.food, .transportation, .shopping, .bills, .entertainment, .other]
+    private let mainCategories: [ExpenseCategory] = [.other]
     
     var body: some View {
         NavigationStack {
@@ -38,7 +38,21 @@ struct AddRecurringExpenseView: View {
                             Text("category".localized)
                             Spacer()
                             Menu {
-                                // All Categories together
+                                // User Categories
+                                ForEach(dataManager.userCategories) { userCategory in
+                                    Button(action: {
+                                        selectedUserCategory = userCategory
+                                        selectedCategory = .other
+                                    }) {
+                                        Label {
+                                            Text(userCategory.name)
+                                        } icon: {
+                                            Image(systemName: userCategory.iconSystemName)
+                                        }
+                                    }
+                                }
+                                
+                                // Default Categories (Other)
                                 ForEach(mainCategories, id: \.self) { category in
                                     Button(action: {
                                         selectedCategory = category
@@ -48,18 +62,6 @@ struct AddRecurringExpenseView: View {
                                             Text(category.localizedName)
                                         } icon: {
                                             Image(systemName: category.icon)
-                                        }
-                                    }
-                                }
-                                
-                                ForEach(dataManager.userCategories) { userCategory in
-                                    Button(action: {
-                                        selectedUserCategory = userCategory
-                                    }) {
-                                        Label {
-                                            Text(userCategory.name)
-                                        } icon: {
-                                            Image(systemName: userCategory.iconSystemName)
                                         }
                                     }
                                 }
@@ -160,6 +162,7 @@ struct AddRecurringExpenseView: View {
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             amount: amountValue,
             category: selectedCategory,
+            userCategoryId: selectedUserCategory?.id, // Save userCategoryId
             recurrenceType: selectedRecurrence,
             startDate: startDate,
             endDate: hasEndDate ? endDate : nil
@@ -180,7 +183,7 @@ struct EditRecurringExpenseView: View {
     
     @State private var title = ""
     @State private var amount = ""
-    @State private var selectedCategory: ExpenseCategory = .food
+    @State private var selectedCategory: ExpenseCategory = .other
     @State private var selectedUserCategory: UserCategory? = nil
     @State private var selectedRecurrence: RecurrenceType = .monthly
     @State private var startDate = Date()
@@ -189,7 +192,7 @@ struct EditRecurringExpenseView: View {
     @State private var isActive = true
     @State private var showingCategoryManagement = false
     
-    private let mainCategories: [ExpenseCategory] = [.food, .transportation, .shopping, .bills, .entertainment, .other]
+    private let mainCategories: [ExpenseCategory] = [.other]
     
     var body: some View {
         NavigationStack {
@@ -212,7 +215,21 @@ struct EditRecurringExpenseView: View {
                             Text("category".localized)
                             Spacer()
                             Menu {
-                                // All Categories together
+                                // User Categories
+                                ForEach(dataManager.userCategories) { userCategory in
+                                    Button(action: {
+                                        selectedUserCategory = userCategory
+                                        selectedCategory = .other
+                                    }) {
+                                        Label {
+                                            Text(userCategory.name)
+                                        } icon: {
+                                            Image(systemName: userCategory.iconSystemName)
+                                        }
+                                    }
+                                }
+                                
+                                // Default Categories (Other)
                                 ForEach(mainCategories, id: \.self) { category in
                                     Button(action: {
                                         selectedCategory = category
@@ -222,18 +239,6 @@ struct EditRecurringExpenseView: View {
                                             Text(category.localizedName)
                                         } icon: {
                                             Image(systemName: category.icon)
-                                        }
-                                    }
-                                }
-                                
-                                ForEach(dataManager.userCategories) { userCategory in
-                                    Button(action: {
-                                        selectedUserCategory = userCategory
-                                    }) {
-                                        Label {
-                                            Text(userCategory.name)
-                                        } icon: {
-                                            Image(systemName: userCategory.iconSystemName)
                                         }
                                     }
                                 }
@@ -357,6 +362,11 @@ struct EditRecurringExpenseView: View {
         hasEndDate = recurringExpense.endDate != nil
         endDate = recurringExpense.endDate ?? Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
         isActive = recurringExpense.isActive
+        
+        // Load user category
+        if let userCategoryId = recurringExpense.userCategoryId {
+            selectedUserCategory = dataManager.userCategories.first(where: { $0.id == userCategoryId })
+        }
     }
     
     private func saveChanges() {
@@ -366,6 +376,7 @@ struct EditRecurringExpenseView: View {
         updatedExpense.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         updatedExpense.amount = amountValue
         updatedExpense.category = selectedCategory
+        updatedExpense.userCategoryId = selectedUserCategory?.id // Save userCategoryId
         updatedExpense.recurrenceType = selectedRecurrence
         updatedExpense.startDate = startDate
         updatedExpense.endDate = hasEndDate ? endDate : nil

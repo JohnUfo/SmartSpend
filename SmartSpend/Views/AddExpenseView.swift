@@ -6,7 +6,7 @@ struct AddExpenseView: View {
     
     @State private var title = ""
     @State private var amount = ""
-    @State private var selectedCategory: ExpenseCategory = .food
+    @State private var selectedCategory: ExpenseCategory = .other
     @State private var selectedUserCategory: UserCategory? = nil
     @State private var selectedDate = Date()
     @State private var showingSuggestions = false
@@ -20,7 +20,7 @@ struct AddExpenseView: View {
     @State private var hasEndDate = false
     @State private var endDate = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
     
-    private let mainCategories: [ExpenseCategory] = [.food, .transportation, .shopping, .bills, .entertainment, .other]
+    private let mainCategories: [ExpenseCategory] = [.other]
     
     var body: some View {
         NavigationStack {
@@ -234,6 +234,7 @@ struct AddExpenseView: View {
             title: title,
             amount: amountValue,
             category: selectedCategory,
+            userCategoryId: selectedUserCategory?.id,
             date: selectedDate
         )
         

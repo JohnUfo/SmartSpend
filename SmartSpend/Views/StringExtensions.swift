@@ -230,7 +230,22 @@ extension String {
             "last_processed": "Last Processed",
             "next_due": "Next Due",
             "upcoming_occurrences": "Upcoming Occurrences",
-            "start": "Start"
+            "start": "Start",
+            
+            // Problem Expenses
+            "problem_expenses": "Problem Expenses",
+            "problem_expenses_title": "Problem Expenses",
+            "problem_expenses_description": "These expenses have unrecognized categories and need your review. Tap on any expense to edit its category.",
+            "expenses_needing_review": "Expenses Needing Review",
+            "needs_review": "Needs Review",
+            "no_problem_expenses_title": "All Clear!",
+            "no_problem_expenses_message": "All your expenses are properly categorized. Great job keeping your data organized!",
+            "auto_categorize_all": "Auto-Categorize All",
+            "delete_all": "Delete All",
+            "apply_category_to_all_title": "Apply to Similar Expenses?",
+            "apply_category_to_all_message": "There are other expenses with the title '%@'. Would you like to apply the same category to all of them?",
+            "apply_to_all": "Apply to All",
+            "just_this_one": "Just This One"
         ]
         
         // Return the translation if found, otherwise return the key itself

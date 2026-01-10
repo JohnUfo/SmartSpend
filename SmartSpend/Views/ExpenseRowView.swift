@@ -12,6 +12,15 @@ struct ExpenseRowView: View {
         selectedExpenses.contains(expense.id)
     }
     
+    // Helper to resolve the correct category display info
+    private var categoryDisplayInfo: (name: String, icon: String, color: Color) {
+        if let userCategoryId = expense.userCategoryId,
+           let userCategory = dataManager.userCategories.first(where: { $0.id == userCategoryId }) {
+            return (userCategory.name, userCategory.iconSystemName, userCategory.color)
+        }
+        return (expense.category.localizedName, expense.category.icon, expense.category.color)
+    }
+    
     var body: some View {
         Button(action: {
             if isSelectionMode {
@@ -25,12 +34,12 @@ struct ExpenseRowView: View {
                 if isSelectionMode {
                     ZStack {
                         Circle()
-                            .stroke(isSelected ? expense.category.color : Color(.systemGray3), lineWidth: 2)
+                            .stroke(isSelected ? categoryDisplayInfo.color : Color(.systemGray3), lineWidth: 2)
                             .frame(width: 24, height: 24)
                         
                         if isSelected {
                             Circle()
-                                .fill(expense.category.color)
+                                .fill(categoryDisplayInfo.color)
                                 .frame(width: 24, height: 24)
                             
                             Image(systemName: "checkmark")
@@ -46,15 +55,15 @@ struct ExpenseRowView: View {
                 HStack(spacing: 0) {
                     // Category Color Bar
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(expense.category.color)
+                        .fill(categoryDisplayInfo.color)
                         .frame(width: 4)
                         .padding(.vertical, 4)
                     
                     HStack(spacing: 12) {
                         // Category Icon
-                        Image(systemName: expense.category.icon)
+                        Image(systemName: categoryDisplayInfo.icon)
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(expense.category.color)
+                            .foregroundStyle(categoryDisplayInfo.color)
                             .frame(width: 40, height: 40)
                         
                         // Expense Details
@@ -77,7 +86,7 @@ struct ExpenseRowView: View {
                                 .font(.system(size: 17, weight: .semibold))
                                 .foregroundStyle(.primary)
                             
-                            Text(expense.category.localizedName)
+                            Text(categoryDisplayInfo.name)
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(.secondary)
                                 .textCase(.uppercase)
@@ -91,7 +100,7 @@ struct ExpenseRowView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(isSelected ? expense.category.color : Color.clear, lineWidth: 2)
+                        .stroke(isSelected ? categoryDisplayInfo.color : Color.clear, lineWidth: 2)
                 )
             }
         }
@@ -157,16 +166,3 @@ struct PressEffectButtonStyle: ButtonStyle {
     }
 }
 
-#Preview {
-    ExpenseRowView(
-        expense: Expense(
-            title: "Coffee",
-            amount: 4.50,
-            category: .food,
-            date: Date()
-        ),
-        isSelectionMode: .constant(false),
-        selectedExpenses: .constant([])
-    )
-    .padding()
-}

@@ -1,45 +1,5 @@
 import SwiftUI
 
-struct MainTabView: View {
-    @ObservedObject private var dataManager = DataManager.shared
-    @ObservedObject private var tabManager = TabManager.shared
-    
-    var body: some View {
-        TabView(selection: $tabManager.selectedTab) {
-            DashboardView()
-                .tabItem {
-                    Label("dashboard".localized, systemImage: "house.fill")
-                }
-                .tag(0)
-            
-            ExpenseListView()
-                .tabItem {
-                    Label("expenses".localized, systemImage: "list.bullet.rectangle")
-                }
-                .tag(1)
-            
-            AnalyticsView()
-                .tabItem {
-                    Label("analytics".localized, systemImage: "chart.bar.fill")
-                }
-                .tag(2)
-            
-            RecurringExpensesView()
-                .tabItem {
-                    Label("recurring".localized, systemImage: "repeat")
-                }
-                .tag(3)
-            
-            SettingsView()
-                .tabItem {
-                    Label("settings".localized, systemImage: "gear")
-                }
-                .tag(4)
-        }
-        .tint(Color(.systemBlue))
-    }
-}
-
 struct SettingsView: View {
     @ObservedObject private var dataManager = DataManager.shared
 
@@ -266,38 +226,3 @@ struct SettingsView: View {
         return CurrencyFormatter.format(amount, currency: currency)
     }
 }
-
-struct StatRowView: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-    
-    var body: some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundStyle(color)
-                .font(.title3)
-                .frame(width: 32, height: 32)
-                .background(color.opacity(0.15), in: Circle())
-            
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-            
-            Spacer()
-            
-            Text(value)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .fontDesign(.rounded)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-#Preview {
-    MainTabView()
-}
-

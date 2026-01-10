@@ -5,6 +5,15 @@
       location = "self:">
    </FileRef>
    <FileRef
-      location = "group:Localizable.strings">
+      location = "group:CategoryManagementView.swift">
+   </FileRef>
+   <FileRef
+      location = "group:BudgetSettingsView.swift">
+   </FileRef>
+   <FileRef
+      location = "group:DashboardView.swift">
+   </FileRef>
+   <FileRef
+      location = "group:SettingsView.swift">
    </FileRef>
 </Workspace>

@@ -3,7 +3,7 @@ import SwiftUI
 struct ExpenseListView: View {
     @ObservedObject private var dataManager = DataManager.shared
     @State private var searchText = ""
-    @State private var selectedCategory: ExpenseCategory?
+    @State private var selectedCategoryId: String? // Changed to String ID (can be ExpenseCategory.rawValue or UserCategory.id.uuidString)
     @State private var selectedTimePeriod: TimePeriod = .all
     @State private var selectedCustomMonth: Date = Date()
     @State private var selectedStartDate: Date = Date()
@@ -47,14 +47,40 @@ struct ExpenseListView: View {
         }
     }
     
-    enum CustomDateMode: String, CaseIterable {
-        case singleDate = "Single Date"
-        case dateRange = "Date Range"
+    // Unified category model for filter
+    struct FilterCategory: Hashable {
+        let id: String
+        let name: String
+        let icon: String
+        let color: Color
+        let isUserCategory: Bool
     }
     
-    var availableCategories: [ExpenseCategory] {
-        let uniqueCategories = Set(dataManager.expenses.map { $0.category })
-        return ExpenseCategory.allCases.filter { uniqueCategories.contains($0) }
+    var availableFilterCategories: [FilterCategory] {
+        var filters: [FilterCategory] = []
+        
+        // Add User Categories that are used or exist
+        for category in dataManager.userCategories {
+            filters.append(FilterCategory(
+                id: category.id.uuidString,
+                name: category.name,
+                icon: category.iconSystemName,
+                color: category.color,
+                isUserCategory: true
+            ))
+        }
+        
+        // Add ExpenseCategory.other if used and not covered by user categories
+        // Or just add it as "Other"
+        filters.append(FilterCategory(
+            id: ExpenseCategory.other.rawValue,
+            name: ExpenseCategory.other.localizedName,
+            icon: ExpenseCategory.other.icon,
+            color: ExpenseCategory.other.color,
+            isUserCategory: false
+        ))
+        
+        return filters
     }
     
     var filteredExpenses: [Expense] {
@@ -89,8 +115,14 @@ struct ExpenseListView: View {
             expenses = expenses.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
         }
         
-        if let selectedCategory = selectedCategory {
-            expenses = expenses.filter { $0.category == selectedCategory }
+        if let selectedId = selectedCategoryId {
+            expenses = expenses.filter { expense in
+                if let userCatId = expense.userCategoryId {
+                    return userCatId.uuidString == selectedId
+                } else {
+                    return expense.category.rawValue == selectedId
+                }
+            }
         }
         
         return expenses
@@ -149,22 +181,22 @@ struct ExpenseListView: View {
                     }
                     
                     // Category Filter
-                    if !availableCategories.isEmpty {
+                    if !availableFilterCategories.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 CategoryFilterButton(
                                     title: "all".localized,
-                                    isSelected: selectedCategory == nil,
-                                    action: { selectedCategory = nil }
+                                    isSelected: selectedCategoryId == nil,
+                                    action: { selectedCategoryId = nil }
                                 )
                                 
-                                ForEach(availableCategories, id: \.self) { category in
+                                ForEach(availableFilterCategories, id: \.id) { category in
                                     CategoryFilterButton(
-                                        title: category.localizedName,
+                                        title: category.name,
                                         icon: category.icon,
                                         color: category.color,
-                                        isSelected: selectedCategory == category,
-                                        action: { selectedCategory = category }
+                                        isSelected: selectedCategoryId == category.id,
+                                        action: { selectedCategoryId = category.id }
                                     )
                                 }
                             }
@@ -348,6 +380,7 @@ struct ExpenseListView: View {
     }
 }
 
+// ... (CalendarPickerView, TimePeriodFilterButton, CategoryFilterButton remain unchanged)
 struct CalendarPickerView: View {
     @Binding var selectedStartDate: Date
     @Binding var selectedEndDate: Date
