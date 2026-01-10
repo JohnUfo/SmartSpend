@@ -4,7 +4,7 @@ struct ArchivedExpense: Identifiable, Codable {
     let id: UUID
     let title: String
     let amount: Double
-    let category: ExpenseCategory
+    let categoryId: UUID
     let date: Date
     let archivedDate: Date
     let notes: String?
@@ -13,7 +13,7 @@ struct ArchivedExpense: Identifiable, Codable {
         self.id = expense.id
         self.title = expense.title
         self.amount = expense.amount
-        self.category = expense.category
+        self.categoryId = expense.categoryId
         self.date = expense.date
         self.archivedDate = Date()
         self.notes = nil

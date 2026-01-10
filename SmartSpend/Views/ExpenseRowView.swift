@@ -14,11 +14,8 @@ struct ExpenseRowView: View {
     
     // Helper to resolve the correct category display info
     private var categoryDisplayInfo: (name: String, icon: String, color: Color) {
-        if let userCategoryId = expense.userCategoryId,
-           let userCategory = dataManager.userCategories.first(where: { $0.id == userCategoryId }) {
-            return (userCategory.name, userCategory.iconSystemName, userCategory.color)
-        }
-        return (expense.category.localizedName, expense.category.icon, expense.category.color)
+        let category = dataManager.resolveCategory(id: expense.categoryId)
+        return (category.name, category.iconSystemName, category.color)
     }
     
     var body: some View {

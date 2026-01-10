@@ -142,7 +142,7 @@ class DataExporter: ObservableObject {
             let dateString = DateFormatter.exportDate.string(from: expense.date)
             let title = escapeCSVField(expense.title)
             let amount = String(expense.amount)
-            let category = expense.category.rawValue
+            let category = escapeCSVField(dataManager.resolveCategory(id: expense.categoryId).name)
             let currency = dataManager.user.currency.rawValue
             
             csv += "\(dateString),\(title),\(amount),\(category),\(currency)\n"
@@ -158,7 +158,7 @@ class DataExporter: ObservableObject {
         for recurring in dataManager.recurringExpenses {
             let title = escapeCSVField(recurring.title)
             let amount = String(recurring.amount)
-            let category = recurring.category.rawValue
+            let category = escapeCSVField(dataManager.resolveCategory(id: recurring.categoryId).name)
             let recurrence = recurring.recurrenceType.rawValue
             let startDate = DateFormatter.exportDate.string(from: recurring.startDate)
             let endDate = recurring.endDate.map { DateFormatter.exportDate.string(from: $0) } ?? ""
@@ -176,7 +176,7 @@ class DataExporter: ObservableObject {
         csv += "Category,Amount,Enabled\n"
         
         for budget in dataManager.categoryBudgets {
-            let category = budget.category.rawValue
+            let category = escapeCSVField(dataManager.resolveCategory(id: budget.categoryId).name)
             let amount = String(budget.amount)
             let enabled = budget.isEnabled ? "Yes" : "No"
             
@@ -188,16 +188,17 @@ class DataExporter: ObservableObject {
     
     private func exportSpendingGoalsToCSV(dataManager: DataManager) -> String {
         var csv = "SPENDING GOALS\n"
-        csv += "Title,Target Amount,Current Amount,Deadline,Completed\n"
+        csv += "Title,Target Amount,Current Amount,Deadline,Category,Completed\n"
         
         for goal in dataManager.spendingGoals {
             let title = escapeCSVField(goal.title)
             let targetAmount = String(goal.targetAmount)
             let currentAmount = String(goal.currentAmount)
             let deadline = DateFormatter.exportDate.string(from: goal.deadline)
+            let category = escapeCSVField(dataManager.resolveCategory(id: goal.categoryId).name)
             let completed = goal.isCompleted ? "Yes" : "No"
             
-            csv += "\(title),\(targetAmount),\(currentAmount),\(deadline),\(completed)\n"
+            csv += "\(title),\(targetAmount),\(currentAmount),\(deadline),\(category),\(completed)\n"
         }
         
         return csv
@@ -293,7 +294,8 @@ class DataExporter: ObservableObject {
         for expense in filteredExpenses.sorted(by: { $0.date > $1.date }) {
             let dateString = DateFormatter.exportDate.string(from: expense.date)
             let amount = CurrencyFormatter.format(expense.amount, currency: dataManager.user.currency)
-            text += "\(dateString) - \(expense.title) - \(amount) - \(expense.category.rawValue)\n"
+            let categoryName = dataManager.resolveCategory(id: expense.categoryId).name
+            text += "\(dateString) - \(expense.title) - \(amount) - \(categoryName)\n"
         }
         
         return text
@@ -350,7 +352,7 @@ class DataExporter: ObservableObject {
             "id": expense.id.uuidString,
             "title": expense.title,
             "amount": expense.amount,
-            "category": expense.category.rawValue,
+            "category": DataManager.shared.resolveCategory(id: expense.categoryId).name,
             "date": DateFormatter.exportDate.string(from: expense.date),
             "currency": currency.rawValue
         ]
@@ -361,7 +363,7 @@ class DataExporter: ObservableObject {
             "id": recurring.id.uuidString,
             "title": recurring.title,
             "amount": recurring.amount,
-            "category": recurring.category.rawValue,
+            "category": DataManager.shared.resolveCategory(id: recurring.categoryId).name,
             "recurrenceType": recurring.recurrenceType.rawValue,
             "startDate": DateFormatter.exportDate.string(from: recurring.startDate),
             "isActive": recurring.isActive
@@ -380,7 +382,7 @@ class DataExporter: ObservableObject {
     
     private func budgetToDict(_ budget: CategoryBudget) -> [String: Any] {
         return [
-            "category": budget.category.rawValue,
+            "category": DataManager.shared.resolveCategory(id: budget.categoryId).name,
             "amount": budget.amount,
             "isEnabled": budget.isEnabled
         ]
@@ -393,6 +395,7 @@ class DataExporter: ObservableObject {
             "targetAmount": goal.targetAmount,
             "currentAmount": goal.currentAmount,
             "deadline": DateFormatter.exportDate.string(from: goal.deadline),
+            "category": DataManager.shared.resolveCategory(id: goal.categoryId).name,
             "isCompleted": goal.isCompleted
         ]
     }

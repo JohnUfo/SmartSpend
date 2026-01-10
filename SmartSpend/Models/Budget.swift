@@ -2,13 +2,13 @@ import Foundation
 
 struct CategoryBudget: Identifiable, Codable, Equatable {
     let id: UUID
-    let category: ExpenseCategory
+    let categoryId: UUID
     var amount: Double
     var isEnabled: Bool
     
-    init(category: ExpenseCategory, amount: Double = 0.0, isEnabled: Bool = false) {
+    init(categoryId: UUID, amount: Double = 0.0, isEnabled: Bool = false) {
         self.id = UUID()
-        self.category = category
+        self.categoryId = categoryId
         self.amount = amount
         self.isEnabled = isEnabled
     }
@@ -21,21 +21,21 @@ struct SpendingGoal: Identifiable, Codable {
     var currentAmount: Double
     var deadline: Date
     var isCompleted: Bool
-    var category: ExpenseCategory
+    var categoryId: UUID
     
     var progress: Double {
         guard targetAmount > 0 else { return 0 }
         return min(currentAmount / targetAmount, 1.0)
     }
     
-    init(title: String, targetAmount: Double, deadline: Date, category: ExpenseCategory = .other) {
+    init(title: String, targetAmount: Double, deadline: Date, categoryId: UUID) {
         self.id = UUID()
         self.title = title
         self.targetAmount = targetAmount
         self.currentAmount = 0.0
         self.deadline = deadline
         self.isCompleted = false
-        self.category = category
+        self.categoryId = categoryId
     }
 }
 
@@ -55,7 +55,7 @@ struct SpendingTrend: Identifiable {
 
 struct CategoryInsight: Identifiable {
     let id: UUID
-    let category: ExpenseCategory
+    let categoryId: UUID
     let currentMonth: Double
     let previousMonth: Double
     let percentageChange: Double
@@ -65,9 +65,9 @@ struct CategoryInsight: Identifiable {
         case up, down, stable
     }
     
-    init(category: ExpenseCategory, currentMonth: Double, previousMonth: Double, percentageChange: Double, trend: TrendDirection) {
+    init(categoryId: UUID, currentMonth: Double, previousMonth: Double, percentageChange: Double, trend: TrendDirection) {
         self.id = UUID()
-        self.category = category
+        self.categoryId = categoryId
         self.currentMonth = currentMonth
         self.previousMonth = previousMonth
         self.percentageChange = percentageChange

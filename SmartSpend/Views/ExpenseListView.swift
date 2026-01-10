@@ -3,7 +3,7 @@ import SwiftUI
 struct ExpenseListView: View {
     @ObservedObject private var dataManager = DataManager.shared
     @State private var searchText = ""
-    @State private var selectedCategoryId: String? // Changed to String ID (can be ExpenseCategory.rawValue or UserCategory.id.uuidString)
+    @State private var selectedCategoryId: String?
     @State private var selectedTimePeriod: TimePeriod = .all
     @State private var selectedCustomMonth: Date = Date()
     @State private var selectedStartDate: Date = Date()
@@ -53,7 +53,6 @@ struct ExpenseListView: View {
         let name: String
         let icon: String
         let color: Color
-        let isUserCategory: Bool
     }
     
     var availableFilterCategories: [FilterCategory] {
@@ -65,22 +64,11 @@ struct ExpenseListView: View {
                 id: category.id.uuidString,
                 name: category.name,
                 icon: category.iconSystemName,
-                color: category.color,
-                isUserCategory: true
+                color: category.color
             ))
         }
         
-        // Add ExpenseCategory.other if used and not covered by user categories
-        // Or just add it as "Other"
-        filters.append(FilterCategory(
-            id: ExpenseCategory.other.rawValue,
-            name: ExpenseCategory.other.localizedName,
-            icon: ExpenseCategory.other.icon,
-            color: ExpenseCategory.other.color,
-            isUserCategory: false
-        ))
-        
-        return filters
+        return filters.sorted { $0.name < $1.name }
     }
     
     var filteredExpenses: [Expense] {
@@ -117,11 +105,7 @@ struct ExpenseListView: View {
         
         if let selectedId = selectedCategoryId {
             expenses = expenses.filter { expense in
-                if let userCatId = expense.userCategoryId {
-                    return userCatId.uuidString == selectedId
-                } else {
-                    return expense.category.rawValue == selectedId
-                }
+                return expense.categoryId.uuidString == selectedId
             }
         }
         

@@ -48,6 +48,7 @@ struct SettingsView: View {
     @State private var showingDeletedExpenses = false
     @State private var showingDataExport = false
     @State private var showingDataImport = false
+    @State private var showingSupportChat = false
     @State private var showingAlert = false
     
     private var currentMonthSalaryText: String {
@@ -63,6 +64,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // Section: Profile & Settings
                 Section("profile".localized) {
                     Button(action: {
                         showingMonthlySalary = true
@@ -109,22 +111,46 @@ struct SettingsView: View {
                     .buttonStyle(.plain)
                 }
                 
-                Section("statistics".localized) {
-                    StatRowView(
-                        title: "total_expenses".localized,
-                        value: formatCurrency(dataManager.getTotalExpenses(), dataManager.user.currency),
-                        icon: "chart.bar.fill",
-                        color: Color(.systemRed)
-                    )
-                    
-                    StatRowView(
-                        title: "remaining_budget".localized,
-                        value: formatCurrency(dataManager.getRemainingBudget(), dataManager.user.currency),
-                        icon: "banknote.fill",
-                        color: Color(.systemGreen)
-                    )
+                // Section: App Features
+                Section("features".localized) {
+                    NavigationLink(destination: BudgetSettingsView()) {
+                        Label("budget_goals".localized, systemImage: "target")
+                            .foregroundStyle(Color(.systemGreen))
+                    }
+                    NavigationLink(destination: CategoryManagementView()) {
+                        Label("categories".localized, systemImage: "tag.fill")
+                            .foregroundStyle(Color(.systemOrange))
+                    }
                 }
                 
+                // Section: Support
+                Section("support".localized) {
+                    Button(action: {
+                        showingSupportChat = true
+                    }) {
+                        HStack {
+                            Label("ai_chat".localized, systemImage: "sparkles.tv.fill")
+                                .foregroundStyle(Color(.systemPurple))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: {
+                        if let url = URL(string: "mailto:tursunov.umidjon.uz@gmail.com") {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
+                        Label("email_us".localized, systemImage: "envelope.fill")
+                            .foregroundStyle(Color(.systemBlue))
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                // Section: Data Control
                 Section("data_management".localized) {
                     Button(action: {
                         showingDataImport = true
@@ -176,45 +202,35 @@ struct SettingsView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    
+                }
+                
+                // Danger Zone at the bottom
+                Section {
                     Button(action: {
                         showingAlert = true
                     }) {
-                        Label("clear_all_data".localized, systemImage: "trash.fill")
-                            .foregroundStyle(Color(.systemRed))
+                        HStack {
+                            Spacer()
+                            Text("clear_all_data".localized)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.red)
+                            Spacer()
+                        }
                     }
-                    .buttonStyle(.plain)
-                }
-                
-                Section("features".localized) {
-                    NavigationLink(destination: BudgetSettingsView()) {
-                        Label("budget_goals".localized, systemImage: "target")
-                            .foregroundStyle(Color(.systemGreen))
-                    }
-                    NavigationLink(destination: CategoryManagementView()) {
-                        Label("categories".localized, systemImage: "tag")
-                            .foregroundStyle(Color(.systemOrange))
-                    }
-                }
-                
-                Section("about".localized) {
-                    HStack {
-                        Label("smartspend".localized + " v2.0", systemImage: "info.circle.fill")
-                            .foregroundStyle(Color(.systemBlue))
-                        Spacer()
-                    }
-                    
-                    HStack {
-                        Label("smart_learning".localized, systemImage: "brain.head.profile")
-                            .foregroundStyle(Color(.systemPurple))
-                        Spacer()
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(Color(.systemGreen))
-                    }
+                } footer: {
+                    Text("SmartSpend v1.0 • Privacy First")
+                        .frame(maxWidth: .infinity)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 8)
                 }
             }
             .navigationTitle("settings".localized)
             .navigationBarTitleDisplayMode(.large)
+            
+            .sheet(isPresented: $showingSupportChat) {
+                SupportChatView()
+            }
 
             .sheet(isPresented: $showingMonthlySalary) {
                 MonthlySalaryView()
@@ -243,57 +259,11 @@ struct SettingsView: View {
     }
     
     private func clearAllData() {
-        dataManager.expenses.removeAll()
-        dataManager.learnedPatterns.removeAll()
-        dataManager.monthlySalaries.removeAll()
-        
-        // Save the cleared data
-        if let encoded = try? JSONEncoder().encode([Expense]()) {
-            UserDefaults.standard.set(encoded, forKey: "expenses")
-        }
-        if let encoded = try? JSONEncoder().encode([LearnedPattern]()) {
-            UserDefaults.standard.set(encoded, forKey: "learnedPatterns")
-        }
-        if let encoded = try? JSONEncoder().encode(User()) {
-            UserDefaults.standard.set(encoded, forKey: "user")
-        }
-        if let encoded = try? JSONEncoder().encode([MonthlySalary]()) {
-            UserDefaults.standard.set(encoded, forKey: "monthlySalaries")
-        }
+        dataManager.clearAllData()
     }
     
     private func formatCurrency(_ amount: Double, _ currency: Currency) -> String {
         return CurrencyFormatter.format(amount, currency: currency)
-    }
-}
-
-struct StatRowView: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-    
-    var body: some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundStyle(color)
-                .font(.title3)
-                .frame(width: 32, height: 32)
-                .background(color.opacity(0.15), in: Circle())
-            
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-            
-            Spacer()
-            
-            Text(value)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .fontDesign(.rounded)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 4)
     }
 }
 

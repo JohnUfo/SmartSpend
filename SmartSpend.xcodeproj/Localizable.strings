@@ -240,3 +240,8 @@
 // MARK: - Notifications
 "notification_title" = "SmartSpend";
 "notification_body" = "Don't forget to track your expenses!";
+
+// MARK: - Support
+"support" = "Support";
+"ai_chat" = "AI Support Chat";
+"email_us" = "Email Support";

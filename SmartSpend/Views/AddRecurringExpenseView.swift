@@ -6,16 +6,13 @@ struct AddRecurringExpenseView: View {
     
     @State private var title = ""
     @State private var amount = ""
-    @State private var selectedCategory: ExpenseCategory = .other
-    @State private var selectedUserCategory: UserCategory? = nil
+    @State private var selectedCategory: UserCategory?
     @State private var selectedRecurrence: RecurrenceType = .monthly
     @State private var startDate = Date()
     @State private var hasEndDate = false
     @State private var endDate = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
     @State private var isActive = true
     @State private var showingCategoryManagement = false
-    
-    private let mainCategories: [ExpenseCategory] = [.other]
     
     var body: some View {
         NavigationStack {
@@ -41,27 +38,12 @@ struct AddRecurringExpenseView: View {
                                 // User Categories
                                 ForEach(dataManager.userCategories) { userCategory in
                                     Button(action: {
-                                        selectedUserCategory = userCategory
-                                        selectedCategory = .other
+                                        selectedCategory = userCategory
                                     }) {
                                         Label {
                                             Text(userCategory.name)
                                         } icon: {
                                             Image(systemName: userCategory.iconSystemName)
-                                        }
-                                    }
-                                }
-                                
-                                // Default Categories (Other)
-                                ForEach(mainCategories, id: \.self) { category in
-                                    Button(action: {
-                                        selectedCategory = category
-                                        selectedUserCategory = nil
-                                    }) {
-                                        Label {
-                                            Text(category.localizedName)
-                                        } icon: {
-                                            Image(systemName: category.icon)
                                         }
                                     }
                                 }
@@ -74,16 +56,14 @@ struct AddRecurringExpenseView: View {
                                 }
                             } label: {
                                 HStack(spacing: 4) {
-                                    if let userCat = selectedUserCategory {
+                                    if let userCat = selectedCategory {
                                         Image(systemName: userCat.iconSystemName)
                                             .foregroundStyle(userCat.color)
                                         Text(userCat.name)
                                             .foregroundStyle(.primary)
                                     } else {
-                                        Image(systemName: selectedCategory.icon)
-                                            .foregroundStyle(selectedCategory.color)
-                                        Text(selectedCategory.localizedName)
-                                            .foregroundStyle(.primary)
+                                        Text("Select Category")
+                                            .foregroundStyle(.secondary)
                                     }
                                     Image(systemName: "chevron.up.chevron.down")
                                         .font(.caption)
@@ -145,6 +125,11 @@ struct AddRecurringExpenseView: View {
             .sheet(isPresented: $showingCategoryManagement) {
                 CategoryManagementView()
             }
+            .onAppear {
+                if selectedCategory == nil {
+                    selectedCategory = dataManager.userCategories.first
+                }
+            }
         }
     }
     
@@ -152,7 +137,8 @@ struct AddRecurringExpenseView: View {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !amount.isEmpty &&
         Double(amount) != nil &&
-        Double(amount)! > 0
+        Double(amount)! > 0 &&
+        selectedCategory != nil
     }
     
     private func saveRecurringExpense() {
@@ -161,8 +147,7 @@ struct AddRecurringExpenseView: View {
         let recurringExpense = RecurringExpense(
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             amount: amountValue,
-            category: selectedCategory,
-            userCategoryId: selectedUserCategory?.id, // Save userCategoryId
+            categoryId: selectedCategory?.id ?? DataManager.shared.resolveCategory(id: UUID()).id,
             recurrenceType: selectedRecurrence,
             startDate: startDate,
             endDate: hasEndDate ? endDate : nil
@@ -183,16 +168,13 @@ struct EditRecurringExpenseView: View {
     
     @State private var title = ""
     @State private var amount = ""
-    @State private var selectedCategory: ExpenseCategory = .other
-    @State private var selectedUserCategory: UserCategory? = nil
+    @State private var selectedCategory: UserCategory?
     @State private var selectedRecurrence: RecurrenceType = .monthly
     @State private var startDate = Date()
     @State private var hasEndDate = false
     @State private var endDate = Date()
     @State private var isActive = true
     @State private var showingCategoryManagement = false
-    
-    private let mainCategories: [ExpenseCategory] = [.other]
     
     var body: some View {
         NavigationStack {
@@ -218,27 +200,12 @@ struct EditRecurringExpenseView: View {
                                 // User Categories
                                 ForEach(dataManager.userCategories) { userCategory in
                                     Button(action: {
-                                        selectedUserCategory = userCategory
-                                        selectedCategory = .other
+                                        selectedCategory = userCategory
                                     }) {
                                         Label {
                                             Text(userCategory.name)
                                         } icon: {
                                             Image(systemName: userCategory.iconSystemName)
-                                        }
-                                    }
-                                }
-                                
-                                // Default Categories (Other)
-                                ForEach(mainCategories, id: \.self) { category in
-                                    Button(action: {
-                                        selectedCategory = category
-                                        selectedUserCategory = nil
-                                    }) {
-                                        Label {
-                                            Text(category.localizedName)
-                                        } icon: {
-                                            Image(systemName: category.icon)
                                         }
                                     }
                                 }
@@ -251,16 +218,14 @@ struct EditRecurringExpenseView: View {
                                 }
                             } label: {
                                 HStack(spacing: 4) {
-                                    if let userCat = selectedUserCategory {
+                                    if let userCat = selectedCategory {
                                         Image(systemName: userCat.iconSystemName)
                                             .foregroundStyle(userCat.color)
                                         Text(userCat.name)
                                             .foregroundStyle(.primary)
                                     } else {
-                                        Image(systemName: selectedCategory.icon)
-                                            .foregroundStyle(selectedCategory.color)
-                                        Text(selectedCategory.localizedName)
-                                            .foregroundStyle(.primary)
+                                        Text("Select Category")
+                                            .foregroundStyle(.secondary)
                                     }
                                     Image(systemName: "chevron.up.chevron.down")
                                         .font(.caption)
@@ -356,17 +321,12 @@ struct EditRecurringExpenseView: View {
     private func loadExpenseData() {
         title = recurringExpense.title
         amount = String(format: "%.2f", recurringExpense.amount)
-        selectedCategory = recurringExpense.category
+        selectedCategory = DataManager.shared.resolveCategory(id: recurringExpense.categoryId)
         selectedRecurrence = recurringExpense.recurrenceType
         startDate = recurringExpense.startDate
         hasEndDate = recurringExpense.endDate != nil
         endDate = recurringExpense.endDate ?? Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
         isActive = recurringExpense.isActive
-        
-        // Load user category
-        if let userCategoryId = recurringExpense.userCategoryId {
-            selectedUserCategory = dataManager.userCategories.first(where: { $0.id == userCategoryId })
-        }
     }
     
     private func saveChanges() {
@@ -375,8 +335,7 @@ struct EditRecurringExpenseView: View {
         var updatedExpense = recurringExpense
         updatedExpense.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         updatedExpense.amount = amountValue
-        updatedExpense.category = selectedCategory
-        updatedExpense.userCategoryId = selectedUserCategory?.id // Save userCategoryId
+        updatedExpense.categoryId = selectedCategory?.id ?? recurringExpense.categoryId
         updatedExpense.recurrenceType = selectedRecurrence
         updatedExpense.startDate = startDate
         updatedExpense.endDate = hasEndDate ? endDate : nil
@@ -440,9 +399,9 @@ struct RecurrencePreviewView: View {
                 
                 if upcomingDates.count == 5 {
                     Text("...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.leading, 20)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 20)
                 }
             }
         }

@@ -1,19 +1,23 @@
 import Foundation
 import SwiftUI
 
-struct UserCategory: Identifiable, Codable, Equatable {
+struct UserCategory: Identifiable, Codable, Equatable, Hashable {
     let id: UUID
     var name: String
     var iconSystemName: String
     var colorName: String
     var createdAt: Date
     
-    init(name: String, iconSystemName: String = "tag.fill", colorName: String = "systemBlue") {
-        self.id = UUID()
+    init(id: UUID = UUID(), name: String, iconSystemName: String = "tag.fill", colorName: String = "systemBlue") {
+        self.id = id
         self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         self.iconSystemName = iconSystemName
         self.colorName = colorName
         self.createdAt = Date()
+    }
+    
+    static func createDefault() -> UserCategory {
+        return UserCategory(name: "General", iconSystemName: "cart.fill", colorName: "systemBlue")
     }
 }
 

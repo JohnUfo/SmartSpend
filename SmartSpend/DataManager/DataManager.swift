@@ -2,30 +2,32 @@ import Foundation
 import SwiftUI
 
 enum TimePeriod: String, CaseIterable {
-    case all = "All Time"
+    case today = "Today"
+    case thisWeek = "This Week"
     case currentMonth = "This Month"
     case lastMonth = "Last Month"
+    case all = "All Time"
     case customMonth = "Custom Month"
     
     var icon: String {
         switch self {
-        case .all: return "infinity"
+        case .today: return "calendar.day.timeline.left"
+        case .thisWeek: return "calendar.badge.clock"
         case .currentMonth: return "calendar"
         case .lastMonth: return "calendar.badge.clock"
+        case .all: return "infinity"
         case .customMonth: return "calendar.badge.exclamationmark"
         }
     }
     
     var localizedName: String {
         switch self {
-        case .all:
-            return "All Time"
-        case .currentMonth:
-            return "This Month"
-        case .lastMonth:
-            return "Last Month"
-        case .customMonth:
-            return "Custom Month"
+        case .today: return "time_period_today".localized
+        case .thisWeek: return "time_period_this_week".localized
+        case .currentMonth: return "time_period_this_month".localized
+        case .lastMonth: return "time_period_last_month".localized
+        case .all: return "time_period_all".localized
+        case .customMonth: return "time_period_custom".localized
         }
     }
 }
@@ -143,6 +145,9 @@ class DataManager: ObservableObject {
             self.userCategories = decodedUserCategories
         }
         
+        // No longer auto-creating default categories.
+        // Categories must be explicitly created by the user or imported.
+        
         // Load custom date range
         if let savedStartDate = UserDefaults.standard.object(forKey: "customStartDate") as? Date {
             self.customStartDate = savedStartDate
@@ -199,7 +204,7 @@ class DataManager: ObservableObject {
         let expense = Expense(
             title: deletedExpense.title,
             amount: deletedExpense.amount,
-            category: deletedExpense.category,
+            categoryId: deletedExpense.categoryId,
             date: deletedExpense.date
         )
         expenses.append(expense)
@@ -254,14 +259,15 @@ class DataManager: ObservableObject {
         return currentSalary - totalExpenses
     }
     
-    func getExpensesByCategory() -> [ExpenseCategory: Double] {
-        var categoryTotals: [ExpenseCategory: Double] = [:]
+    func getExpensesByCategory() -> [UserCategory: Double] {
+        var categoryTotals: [UserCategory: Double] = [:]
         
         for expense in expenses {
-            if let existingTotal = categoryTotals[expense.category] {
-                categoryTotals[expense.category] = existingTotal + expense.amount
+            let category = resolveCategory(id: expense.categoryId)
+            if let existingTotal = categoryTotals[category] {
+                categoryTotals[category] = existingTotal + expense.amount
             } else {
-                categoryTotals[expense.category] = expense.amount
+                categoryTotals[category] = expense.amount
             }
         }
         
@@ -378,7 +384,7 @@ class DataManager: ObservableObject {
             $0.title.lowercased() == expense.title.lowercased()
         }) {
             // Update existing pattern
-            learnedPatterns[existingIndex].addCombination(price: expense.amount, category: expense.category)
+            learnedPatterns[existingIndex].addCombination(price: expense.amount, categoryId: expense.categoryId)
         } else {
             // Check for similar patterns
             let similarPatterns = learnedPatterns
@@ -391,14 +397,14 @@ class DataManager: ObservableObject {
             if let bestMatch = similarPatterns.first {
                 // Update the most similar pattern
                 if let index = learnedPatterns.firstIndex(where: { $0.id == bestMatch.pattern.id }) {
-                    learnedPatterns[index].addCombination(price: expense.amount, category: expense.category)
+                    learnedPatterns[index].addCombination(price: expense.amount, categoryId: expense.categoryId)
                 }
             } else {
                 // Create new pattern
                 let pattern = LearnedPattern(
                     title: expense.title,
                     price: expense.amount,
-                    category: expense.category
+                    categoryId: expense.categoryId
                 )
                 learnedPatterns.append(pattern)
             }
@@ -442,12 +448,12 @@ class DataManager: ObservableObject {
             var pattern = LearnedPattern(
                 title: mostRecentExpense.title,
                 price: mostRecentExpense.amount,
-                category: mostRecentExpense.category
+                categoryId: mostRecentExpense.categoryId
             )
             
             // Add all other expenses to the pattern
             for expense in expensesForTitle.dropFirst() {
-                pattern.addCombination(price: expense.amount, category: expense.category)
+                pattern.addCombination(price: expense.amount, categoryId: expense.categoryId)
             }
             
             learnedPatterns.append(pattern)
@@ -473,7 +479,7 @@ class DataManager: ObservableObject {
                     // Merge pattern j into pattern i
                     for categoryFreq in learnedPatterns[j].categoryFrequencies {
                         for _ in 0..<categoryFreq.frequency {
-                            learnedPatterns[i].addCombination(price: 0, category: categoryFreq.category)
+                            learnedPatterns[i].addCombination(price: 0, categoryId: categoryFreq.categoryId)
                         }
                     }
                     
@@ -513,13 +519,13 @@ class DataManager: ObservableObject {
     }
     
     // New method: Get category prediction for a title
-    func getCategoryPrediction(for title: String) -> (category: ExpenseCategory, confidence: Double)? {
+    func getCategoryPrediction(for title: String) -> (category: UserCategory, confidence: Double)? {
         let suggestions = getSmartSuggestions(for: title)
         
         guard !suggestions.isEmpty else { return nil }
         
         // Calculate weighted category prediction
-        var categoryScores: [ExpenseCategory: Double] = [:]
+        var categoryScores: [UUID: Double] = [:]
         
         for suggestion in suggestions {
             let similarity = suggestion.similarityScore(with: title)
@@ -530,30 +536,31 @@ class DataManager: ObservableObject {
             
             for categoryFreq in suggestion.categoryFrequencies {
                 let score = Double(categoryFreq.frequency) * weight
-                categoryScores[categoryFreq.category, default: 0.0] += score
+                categoryScores[categoryFreq.categoryId, default: 0.0] += score
             }
         }
         
         // Find the category with highest score
-        guard let bestCategory = categoryScores.max(by: { $0.value < $1.value }) else {
+        guard let bestCategoryId = categoryScores.max(by: { $0.value < $1.value })?.key else {
             return nil
         }
         
         // Calculate overall confidence
         let totalScore = categoryScores.values.reduce(0, +)
-        let confidence = totalScore > 0 ? bestCategory.value / totalScore : 0.0
+        let confidence = totalScore > 0 ? categoryScores[bestCategoryId]! / totalScore : 0.0
         
-        return (category: bestCategory.key, confidence: min(confidence, 1.0))
+        let category = resolveCategory(id: bestCategoryId)
+        return (category: category, confidence: min(confidence, 1.0))
     }
     
     // New method: Get top category suggestions for a title
-    func getTopCategorySuggestions(for title: String, limit: Int = 3) -> [(category: ExpenseCategory, confidence: Double)] {
+    func getTopCategorySuggestions(for title: String, limit: Int = 3) -> [(category: UserCategory, confidence: Double)] {
         let suggestions = getSmartSuggestions(for: title)
         
         guard !suggestions.isEmpty else { return [] }
         
         // Calculate weighted category scores
-        var categoryScores: [ExpenseCategory: Double] = [:]
+        var categoryScores: [UUID: Double] = [:]
         
         for suggestion in suggestions {
             let similarity = suggestion.similarityScore(with: title)
@@ -563,7 +570,7 @@ class DataManager: ObservableObject {
             
             for categoryFreq in suggestion.categoryFrequencies {
                 let score = Double(categoryFreq.frequency) * weight
-                categoryScores[categoryFreq.category, default: 0.0] += score
+                categoryScores[categoryFreq.categoryId, default: 0.0] += score
             }
         }
         
@@ -571,10 +578,13 @@ class DataManager: ObservableObject {
         let totalScore = categoryScores.values.reduce(0, +)
         
         return categoryScores
-            .map { (category: $0.key, confidence: totalScore > 0 ? $0.value / totalScore : 0.0) }
+            .map { (id, score) -> (category: UserCategory, confidence: Double) in
+                let confidence = totalScore > 0 ? score / totalScore : 0.0
+                return (category: resolveCategory(id: id), confidence: min(confidence, 1.0))
+            }
             .sorted { $0.confidence > $1.confidence }
             .prefix(limit)
-            .map { (category: $0.category, confidence: min($0.confidence, 1.0)) }
+            .map { (category: $0.category, confidence: $0.confidence) }
     }
     
     // Enhanced method: Get smart suggestions with category focus
@@ -607,6 +617,7 @@ class DataManager: ObservableObject {
         monthlySalaries.removeAll()
         recurringExpenses.removeAll()
         learnedPatterns.removeAll()
+        userCategories.removeAll()
         saveData()
     }
     
@@ -642,8 +653,7 @@ class DataManager: ObservableObject {
                 let newExpense = Expense(
                     title: recurringExpense.title,
                     amount: recurringExpense.amount,
-                    category: recurringExpense.category,
-                    userCategoryId: recurringExpense.userCategoryId,
+                    categoryId: recurringExpense.categoryId,
                     date: today
                 )
                 
@@ -687,15 +697,17 @@ class DataManager: ObservableObject {
         var alerts: [String] = []
         
         for budget in categoryBudgets {
-            let categoryExpenses = expenses.filter { $0.category == budget.category }
+            let categoryExpenses = expenses.filter { $0.categoryId == budget.categoryId }
             let totalSpent = categoryExpenses.reduce(0) { $0 + $1.amount }
+            
+            let category = resolveCategory(id: budget.categoryId)
             
             if totalSpent > budget.amount {
                 let overspent = totalSpent - budget.amount
-                alerts.append("Over budget for \(budget.category.rawValue) by \(CurrencyFormatter.format(overspent, currency: user.currency))")
+                alerts.append("Over budget for \(category.name) by \(CurrencyFormatter.format(overspent, currency: user.currency))")
             } else if totalSpent > budget.amount * 0.8 {
                 let remaining = budget.amount - totalSpent
-                alerts.append("Close to budget limit for \(budget.category.rawValue). \(CurrencyFormatter.format(remaining, currency: user.currency)) remaining")
+                alerts.append("Close to budget limit for \(category.name). \(CurrencyFormatter.format(remaining, currency: user.currency)) remaining")
             }
         }
         
@@ -706,7 +718,7 @@ class DataManager: ObservableObject {
         // Update progress for all spending goals based on current expenses
         for index in spendingGoals.indices {
             let goal = spendingGoals[index]
-            let categoryExpenses = expenses.filter { $0.category == goal.category }
+            let categoryExpenses = expenses.filter { $0.categoryId == goal.categoryId }
             let totalSpent = categoryExpenses.reduce(0) { $0 + $1.amount }
             
             // Calculate progress as percentage
@@ -791,6 +803,21 @@ class DataManager: ObservableObject {
         userCategories[index].colorName = colorName
         saveData()
     }
+
+    func getCategory(id: UUID) -> UserCategory? {
+        return userCategories.first(where: { $0.id == id })
+    }
+    
+    func resolveCategory(id: UUID) -> UserCategory {
+        if let category = getCategory(id: id) {
+            return category
+        }
+        // Fallback
+        if let first = userCategories.first {
+            return first
+        }
+        return UserCategory.createDefault()
+    }
     
     func updateCustomDateRange(startDate: Date, endDate: Date) {
         customStartDate = startDate
@@ -805,6 +832,11 @@ class DataManager: ObservableObject {
         let now = Date()
         
         switch selectedTimePeriod {
+        case .today:
+            return expenses.filter { calendar.isDateInToday($0.date) }
+        case .thisWeek:
+            guard let weekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) else { return [] }
+            return expenses.filter { $0.date >= weekStart && $0.date <= now }
         case .all:
             return expenses
         case .currentMonth:
@@ -824,6 +856,37 @@ class DataManager: ObservableObject {
         return filteredExpenses.reduce(0) { $0 + $1.amount }
     }
     
+    // MARK: - AI Coach Intelligence
+    
+    func getUpcomingBillReminders() -> [String] {
+        let calendar = Calendar.current
+        let now = Date()
+        let twoDaysFromNow = calendar.date(byAdding: .day, value: 2, to: now)!
+        
+        var reminders: [String] = []
+        let salary = getCurrentSalaryForPeriod()
+        let spent = getTotalExpensesForPeriod()
+        let remainingBudget = max(0, salary - spent)
+        
+        for bill in recurringExpenses {
+            let nextDate = bill.nextDueDate
+            guard nextDate >= now && nextDate <= twoDaysFromNow else { continue }
+            
+            let budgetAfterBill = remainingBudget - bill.amount
+            let daysUntil = calendar.dateComponents([.day], from: now, to: nextDate).day ?? 0
+            
+            let dayText = daysUntil == 0 ? "today".localized : "tomorrow".localized
+            let formattedRemainder = CurrencyFormatter.format(budgetAfterBill, currency: user.currency)
+            
+            // Note: Since .localized doesn't support placeholders for placeholders in StringExtensions yet,
+            // we'll format it normally or add keys.
+            let message = "Reminder: \(bill.title) is due \(dayText). You'll have \(formattedRemainder) left after this payment."
+            reminders.append(message)
+        }
+        
+        return reminders
+    }
+    
     func getRemainingBudgetForPeriod() -> Double {
         let salary = getCurrentSalaryForPeriod()
         return max(0, salary - getTotalExpensesForPeriod())
@@ -831,6 +894,14 @@ class DataManager: ObservableObject {
     
     func getCurrentSalaryForPeriod() -> Double {
         switch selectedTimePeriod {
+        case .today:
+            let monthSalary = getCurrentMonthSalary()
+            let daysInMonth = Calendar.current.range(of: .day, in: .month, for: Date())?.count ?? 30
+            return monthSalary / Double(daysInMonth)
+        case .thisWeek:
+            let monthSalary = getCurrentMonthSalary()
+            let daysInMonth = Calendar.current.range(of: .day, in: .month, for: Date())?.count ?? 30
+            return (monthSalary / Double(daysInMonth)) * 7.0
         case .all:
             return monthlySalaries.reduce(0) { $0 + $1.amount }
         case .currentMonth:
@@ -866,30 +937,15 @@ class DataManager: ObservableObject {
     // Supports User Categories
     func getCategoryBreakdownForPeriod() -> [(name: String, amount: Double, color: Color, icon: String)] {
         let filteredExpenses = getFilteredExpenses()
-        var categoryTotals: [String: Double] = [:]
+        var categoryTotals: [UserCategory: Double] = [:]
         
         for expense in filteredExpenses {
-            let name: String
-            if let userCatId = expense.userCategoryId,
-               let userCat = userCategories.first(where: { $0.id == userCatId }) {
-                name = userCat.name
-            } else {
-                name = expense.category.rawValue
-            }
-            categoryTotals[name, default: 0] += expense.amount
+            let category = resolveCategory(id: expense.categoryId)
+            categoryTotals[category, default: 0] += expense.amount
         }
         
-        return categoryTotals.map { name, amount in
-            let color: Color
-            let icon: String
-            if let userCat = userCategories.first(where: { $0.name == name }) {
-                color = userCat.color
-                icon = userCat.iconSystemName
-            } else {
-                color = .gray
-                icon = "tag.fill"
-            }
-            return (name: name, amount: amount, color: color, icon: icon)
+        return categoryTotals.map { category, amount in
+            (name: category.name, amount: amount, color: category.color, icon: category.iconSystemName)
         }.sorted { $0.amount > $1.amount }
     }
     

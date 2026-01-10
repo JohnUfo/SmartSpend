@@ -78,6 +78,7 @@ extension String {
             "time_period_today": "Today",
             "time_period_this_week": "This Week",
             "time_period_this_month": "This Month",
+            "time_period_last_month": "Last Month",
             "time_period_custom": "Custom",
             "search_expenses": "Search expenses...",
             "all": "All",
@@ -245,7 +246,22 @@ extension String {
             "apply_category_to_all_title": "Apply to Similar Expenses?",
             "apply_category_to_all_message": "There are other expenses with the title '%@'. Would you like to apply the same category to all of them?",
             "apply_to_all": "Apply to All",
-            "just_this_one": "Just This One"
+            "just_this_one": "Just This One",
+            
+            // Support
+            "support": "Support",
+            "ai_chat": "AI Support Chat",
+            "email_us": "Email Support",
+            "chat_placeholder": "How can I help you today?",
+            "support_agent_name": "SmartSpend AI",
+            "support_agent_status": "Always Active",
+            
+            // AI Coach Tips
+            "coach_tip_spending_surge": "Heads up! Your spending has surged by %@ this week. You might want to review your recent purchases.",
+            "coach_tip_budget_warning": "Caution: You've used %d%% of your %@ budget. You're approaching your limit!",
+            "coach_tip_budget_exceeded": "Alert: You've exceeded your monthly budget for %@. Let's try to slow down in this category.",
+            "coach_tip_savings_success": "Excellent work! Your spending is down 20% compared to last week. You're becoming a savings master!",
+            "coach_tip_set_budget": "Pro Tip: Setting monthly category budgets helps you save 15% more on average. Try setting one in Budget Settings!"
         ]
         
         // Return the translation if found, otherwise return the key itself

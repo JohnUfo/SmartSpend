@@ -379,7 +379,7 @@ class GamificationManager: ObservableObject {
             return Double(dataManager.expenses.count) / Double(target)
             
         case .categoriesUsed(let target):
-            let uniqueCategories = Set(dataManager.expenses.map { $0.category })
+            let uniqueCategories = Set(dataManager.expenses.map { $0.categoryId })
             return Double(uniqueCategories.count) / Double(target)
             
         case .savingsGoalReached(let target):

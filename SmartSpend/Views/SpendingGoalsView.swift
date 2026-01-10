@@ -61,16 +61,27 @@ struct GoalProgressRow: View {
     let goal: SpendingGoal
     @ObservedObject private var dataManager = DataManager.shared
     
+    private var category: UserCategory {
+        dataManager.resolveCategory(id: goal.categoryId)
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
+                // Category Icon
+                Image(systemName: category.iconSystemName)
+                    .font(.caption)
+                    .foregroundStyle(category.color)
+                    .frame(width: 24, height: 24)
+                    .background(category.color.opacity(0.1), in: Circle())
+                
                 VStack(alignment: .leading, spacing: 2) {
                     Text(goal.title)
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundStyle(.primary)
                     
-                    Text("Target: \(CurrencyFormatter.format(goal.targetAmount, currency: dataManager.user.currency))")
+                    Text("\(category.name) • Target: \(CurrencyFormatter.format(goal.targetAmount, currency: dataManager.user.currency))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

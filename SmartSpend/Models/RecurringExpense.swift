@@ -48,8 +48,7 @@ struct RecurringExpense: Identifiable, Codable {
     let id: UUID
     var title: String
     var amount: Double
-    var category: ExpenseCategory
-    var userCategoryId: UUID? // Added userCategoryId
+    var categoryId: UUID
     var recurrenceType: RecurrenceType
     var startDate: Date
     var endDate: Date?
@@ -57,12 +56,11 @@ struct RecurringExpense: Identifiable, Codable {
     var lastProcessedDate: Date?
     var createdDate: Date
     
-    init(title: String, amount: Double, category: ExpenseCategory, userCategoryId: UUID? = nil, recurrenceType: RecurrenceType, startDate: Date, endDate: Date? = nil) {
+    init(title: String, amount: Double, categoryId: UUID, recurrenceType: RecurrenceType, startDate: Date, endDate: Date? = nil) {
         self.id = UUID()
         self.title = title
         self.amount = amount
-        self.category = category
-        self.userCategoryId = userCategoryId
+        self.categoryId = categoryId
         self.recurrenceType = recurrenceType
         self.startDate = startDate
         self.endDate = endDate
@@ -108,8 +106,7 @@ struct RecurringExpense: Identifiable, Codable {
         return Expense(
             title: title,
             amount: amount,
-            category: category,
-            userCategoryId: userCategoryId, // Pass userCategoryId
+            categoryId: categoryId,
             date: Date()
         )
     }

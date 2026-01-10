@@ -1,6 +1,35 @@
 # SmartSpend Changelog
 
-## Version 2.2 - Notion Integration & Enhanced Smart Learning
+## Version 1.0.0 - Official Release 🚀
+
+### 🆕 New Features
+
+#### 📅 Dashboard Time Periods
+- **Today & This Week**: Introduced dedicated views for immediate spending tracking.
+- **Proportional Salary Calculation**: Smart budget remaining amount based on current date (e.g., daily/weekly allowance calculated from monthly income).
+
+#### 🛠 Improved Category Management
+- **Persistent Category IDs**: Fixed a critical bug where editing a category would break links to existing expenses.
+- **Enhanced Customization**: Seamlessly update category icons and colors without affecting historical data.
+
+#### 📉 Enhanced Analytics
+- **Granular Filtering**: Apply the new time periods across all analytics views.
+
+### 🔧 UI/UX Improvements
+- **Optimized Swipe Gestures**: Smoother delete interactions that respect vertical scrolling.
+- **Refined AI Chat**: Direct focus on the AI Accountant without intrusive proactive tips.
+- **Premium Aesthetics**: Polished design elements across the dashboard and settings.
+
+### 📁 Files Modified
+- `SmartSpend/DataManager/DataManager.swift` - Time period logic and salary proportional calculations.
+- `SmartSpend/Views/DashboardView.swift` - Added Today/This Week buttons and updated layout.
+- `SmartSpend/Views/CategoryManagementView.swift` - Fixed category ID persistence bug.
+- `SmartSpend/Views/SupportChatView.swift` - Streamlined AI chat experience.
+- `SmartSpend.xcodeproj` - Set Marketing Version to 1.0.0.
+
+---
+
+## Version 2.2 - Notion Integration (Pre-Release archive)
 
 ### 🆕 New Features
 

@@ -354,21 +354,11 @@ struct DataImportView: View {
                 switch result {
                 case .success(let importedCount, let skippedCount, let errors):
                     print("Import success! Imported: \(importedCount), Skipped: \(skippedCount), Errors: \(errors.count)")
-                    // Count how many expenses were categorized as "other" (problem expenses)
-                    let problemCount = dataManager.expenses.filter { $0.category == .other }.count
                     
                     if errors.isEmpty {
-                        var message = String(format: "import_success_count".localized, importedCount)
-                        if problemCount > 0 {
-                            message += "\n\n" + String(format: "check_problem_expenses_hint".localized, problemCount)
-                        }
-                        alertMessage = message
+                        alertMessage = String(format: "import_success_count".localized, importedCount)
                     } else {
-                        var message = String(format: "import_partial_with_errors".localized, importedCount, skippedCount)
-                        if problemCount > 0 {
-                            message += "\n\n" + String(format: "check_problem_expenses_hint".localized, problemCount)
-                        }
-                        alertMessage = message
+                        alertMessage = String(format: "import_partial_with_errors".localized, importedCount, skippedCount)
                         print("Import errors (showing first 5):")
                         for error in errors.prefix(5) {
                             print("  - \(error)")

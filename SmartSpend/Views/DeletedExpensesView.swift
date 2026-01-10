@@ -4,11 +4,13 @@ struct DeletedExpensesView: View {
     @ObservedObject private var dataManager = DataManager.shared
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
-    @State private var selectedCategory: ExpenseCategory?
+    @State private var selectedCategoryId: UUID?
     
-    var availableCategories: [ExpenseCategory] {
-        let uniqueCategories = Set(dataManager.deletedExpenses.map { $0.category })
-        return ExpenseCategory.allCases.filter { uniqueCategories.contains($0) }
+    var availableCategories: [UserCategory] {
+        let uniqueCategoryIds = Set(dataManager.deletedExpenses.map { $0.categoryId })
+        return uniqueCategoryIds.compactMap { id in
+            dataManager.resolveCategory(id: id)
+        }.sorted { $0.name < $1.name }
     }
     
     var filteredDeletedExpenses: [ArchivedExpense] {
@@ -18,8 +20,8 @@ struct DeletedExpensesView: View {
             expenses = expenses.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
         }
         
-        if let selectedCategory = selectedCategory {
-            expenses = expenses.filter { $0.category == selectedCategory }
+        if let selectedCategoryId = selectedCategoryId {
+            expenses = expenses.filter { $0.categoryId == selectedCategoryId }
         }
         
         return expenses
@@ -48,17 +50,17 @@ struct DeletedExpensesView: View {
                             HStack(spacing: 8) {
                                 CategoryFilterButton(
                                     title: "All",
-                                    isSelected: selectedCategory == nil,
-                                    action: { selectedCategory = nil }
+                                    isSelected: selectedCategoryId == nil,
+                                    action: { selectedCategoryId = nil }
                                 )
                                 
                                 ForEach(availableCategories, id: \.self) { category in
                                     CategoryFilterButton(
-                                        title: category.localizedName,
-                                        icon: category.icon,
+                                        title: category.name,
+                                        icon: category.iconSystemName,
                                         color: category.color,
-                                        isSelected: selectedCategory == category,
-                                        action: { selectedCategory = category }
+                                        isSelected: selectedCategoryId == category.id,
+                                        action: { selectedCategoryId = category.id }
                                     )
                                 }
                             }
@@ -73,17 +75,17 @@ struct DeletedExpensesView: View {
                 // Deleted Expenses List
                 if filteredDeletedExpenses.isEmpty {
                     VStack(spacing: 20) {
-                        Image(systemName: searchText.isEmpty && selectedCategory == nil ? "archivebox" : "magnifyingglass")
+                        Image(systemName: searchText.isEmpty && selectedCategoryId == nil ? "archivebox" : "magnifyingglass")
                             .font(.system(size: 50))
                             .foregroundStyle(.tertiary)
                         
                         VStack(spacing: 8) {
-                            Text(searchText.isEmpty && selectedCategory == nil ? "no_deleted_expenses".localized : "no_deleted_expenses_found".localized)
+                            Text(searchText.isEmpty && selectedCategoryId == nil ? "no_deleted_expenses".localized : "no_deleted_expenses_found".localized)
                                 .font(.title3)
                                 .fontWeight(.medium)
                                 .foregroundStyle(.secondary)
                             
-                            if !searchText.isEmpty || selectedCategory != nil {
+                            if !searchText.isEmpty || selectedCategoryId != nil {
                                 Text("try_adjusting_filters_deleted".localized)
                                     .font(.subheadline)
                                     .foregroundStyle(.tertiary)
@@ -135,14 +137,20 @@ struct DeletedExpenseRowView: View {
     let deletedExpense: ArchivedExpense
     @ObservedObject private var dataManager = DataManager.shared
     
+    // Helper to resolve the correct category display info
+    private var categoryDisplayInfo: (name: String, icon: String, color: Color) {
+        let category = dataManager.resolveCategory(id: deletedExpense.categoryId)
+        return (category.name, category.iconSystemName, category.color)
+    }
+    
     var body: some View {
         HStack(spacing: 12) {
             // Category Icon
-            Image(systemName: deletedExpense.category.icon)
-                .foregroundStyle(deletedExpense.category.color)
+            Image(systemName: categoryDisplayInfo.icon)
+                .foregroundStyle(categoryDisplayInfo.color)
                 .font(.title3)
                 .frame(width: 36, height: 36)
-                .background(deletedExpense.category.color.opacity(0.15), in: Circle())
+                .background(categoryDisplayInfo.color.opacity(0.15), in: Circle())
             
             // Expense Details
             VStack(alignment: .leading, spacing: 4) {
@@ -153,7 +161,7 @@ struct DeletedExpenseRowView: View {
                     .lineLimit(1)
                 
                 HStack {
-                    Text(deletedExpense.category.rawValue)
+                    Text(categoryDisplayInfo.name)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     

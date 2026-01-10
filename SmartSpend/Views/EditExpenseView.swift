@@ -8,24 +8,17 @@ struct EditExpenseView: View {
     
     @State private var title: String
     @State private var amount: String
-    @State private var selectedCategory: ExpenseCategory
-    @State private var selectedUserCategory: UserCategory? = nil
+    @State private var selectedCategory: UserCategory?
     @State private var selectedDate: Date
     @State private var showingCategoryManagement = false
     
-    private let mainCategories: [ExpenseCategory] = [.other]
     
     init(expense: Expense) {
         self.expense = expense
         self._title = State(initialValue: expense.title)
         self._amount = State(initialValue: String(format: "%.2f", expense.amount))
-        self._selectedCategory = State(initialValue: expense.category)
+        self._selectedCategory = State(initialValue: DataManager.shared.resolveCategory(id: expense.categoryId))
         self._selectedDate = State(initialValue: expense.date)
-        
-        // Load user category if it exists
-        if let userCategoryId = expense.userCategoryId {
-            self._selectedUserCategory = State(initialValue: DataManager.shared.userCategories.first { $0.id == userCategoryId })
-        }
     }
     
     var body: some View {
@@ -54,41 +47,32 @@ struct EditExpenseView: View {
                         Spacer()
                         Menu {
                             // User Custom Categories
-                            if dataManager.userCategories.isEmpty {
-                                Button(action: { showingCategoryManagement = true }) {
-                                    Label("Create Your First Category", systemImage: "plus.circle.fill")
-                                }
-                            } else {
-                                ForEach(dataManager.userCategories) { userCategory in
-                                    Button(action: {
-                                        selectedUserCategory = userCategory
-                                        selectedCategory = .other // Keep base category as .other
-                                    }) {
-                                        Label {
-                                            Text(userCategory.name)
-                                        } icon: {
-                                            Image(systemName: userCategory.iconSystemName)
-                                        }
+                            ForEach(dataManager.userCategories) { userCategory in
+                                Button(action: {
+                                    selectedCategory = userCategory
+                                }) {
+                                    Label {
+                                        Text(userCategory.name)
+                                    } icon: {
+                                        Image(systemName: userCategory.iconSystemName)
                                     }
                                 }
-                                
-                                Divider()
-                                
-                                // Create New Category
-                                Button(action: { showingCategoryManagement = true }) {
-                                    Label("Create New Category", systemImage: "plus.circle")
-                                }
+                            }
+                            
+                            Divider()
+                            
+                            // Create New Category
+                            Button(action: { showingCategoryManagement = true }) {
+                                Label("Create New Category", systemImage: "plus.circle")
                             }
                         } label: {
                             HStack(spacing: 4) {
-                                if let userCat = selectedUserCategory {
+                                if let userCat = selectedCategory {
                                     Image(systemName: userCat.iconSystemName)
                                         .foregroundStyle(userCat.color)
                                     Text(userCat.name)
                                         .foregroundStyle(.primary)
                                 } else {
-                                    Image(systemName: "tag.fill")
-                                        .foregroundStyle(.gray)
                                     Text("Select Category")
                                         .foregroundStyle(.secondary)
                                 }
@@ -141,8 +125,7 @@ struct EditExpenseView: View {
             var updatedExpense = dataManager.expenses[index]
             updatedExpense.title = title
             updatedExpense.amount = amountValue
-            updatedExpense.category = selectedCategory
-            updatedExpense.userCategoryId = selectedUserCategory?.id
+            updatedExpense.categoryId = selectedCategory?.id ?? expense.categoryId
             updatedExpense.date = selectedDate
             
             dataManager.expenses[index] = updatedExpense
@@ -156,7 +139,7 @@ struct EditExpenseView: View {
     EditExpenseView(expense: Expense(
         title: "Coffee",
         amount: 4.50,
-        category: .other,
+        categoryId: UUID(),
         date: Date()
     ))
 }

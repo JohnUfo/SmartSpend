@@ -24,12 +24,13 @@ struct AnalyticsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(spacing: 20) {
+                LazyVStack(spacing: 24) {
                     timeFramePicker
+                    spendingHighlights
                     spendingTrendSection
-                    if !currentPeriodExpenses.isEmpty {
-                        peakSpendingDaysSection
-                    }
+                    categoryBreakdownSection
+                    categoryBudgetSection
+                    peakSpendingDaysSection
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 16)
@@ -73,6 +74,96 @@ struct AnalyticsView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
     
+    private var spendingHighlights: some View {
+        HStack(spacing: 12) {
+            highlightCard(title: "spent".localized, value: CurrencyFormatter.format(currentPeriodTotal, currency: dataManager.user.currency), icon: "banknote.fill", color: .blue)
+            highlightCard(title: "daily_avg".localized, value: CurrencyFormatter.format(averageDailySpend, currency: dataManager.user.currency), icon: "chart.line.uptrend.xyaxis", color: .purple)
+        }
+    }
+    
+    private func highlightCard(title: String, value: String, icon: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(color)
+                .frame(width: 36, height: 36)
+                .background(color.opacity(0.1), in: Circle())
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fontWeight(.medium)
+                Text(value)
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .fontDesign(.rounded)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+    
+    private var categoryBreakdownSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("category_breakdown".localized)
+                .font(.headline)
+                .fontWeight(.semibold)
+            
+            if currentPeriodExpenses.isEmpty {
+                Text("no_expenses_found".localized)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+            } else {
+                let data = groupExpensesByCategory(currentPeriodExpenses)
+                HStack(spacing: 20) {
+                    Chart {
+                        ForEach(Array(data.keys), id: \.id) { category in
+                            SectorMark(
+                                angle: .value("Amount", data[category] ?? 0),
+                                innerRadius: .ratio(0.618),
+                                angularInset: 1.5
+                            )
+                            .cornerRadius(4)
+                            .foregroundStyle(by: .value("Category", category.name))
+                        }
+                    }
+                    .chartLegend(.hidden)
+                    .frame(width: 140, height: 140)
+                    .overlay {
+                        VStack {
+                            Text("\(categoriesUsedCount)")
+                                .font(.title3.bold())
+                                .fontDesign(.rounded)
+                            Text("categories".localized)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(Array(data.keys.prefix(4)), id: \.id) { category in
+                            HStack {
+                                Circle().fill(category.color).frame(width: 8, height: 8)
+                                Text(category.name)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text(CurrencyFormatter.format(data[category] ?? 0, currency: dataManager.user.currency))
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+    
     private var categoryBudgetSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -88,11 +179,12 @@ struct AnalyticsView: View {
             }
             
             LazyVStack(spacing: 12) {
-                ForEach(dataManager.categoryBudgets.filter { $0.isEnabled }) { budget in
+                let activeBudgets = dataManager.categoryBudgets.filter { $0.isEnabled }
+                ForEach(activeBudgets) { budget in
                     CategoryBudgetRow(budget: budget)
                 }
                 
-                if dataManager.categoryBudgets.filter({ $0.isEnabled }).isEmpty {
+                if activeBudgets.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "target")
                             .font(.system(size: 30))
@@ -100,11 +192,6 @@ struct AnalyticsView: View {
                         Text("no_budget_set".localized)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                        Button("set_budget".localized) {
-                            showingBudgetSettings = true
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
@@ -304,7 +391,7 @@ struct AnalyticsView: View {
     }
     
     private var categoriesUsedCount: Int {
-        Set(currentPeriodExpenses.map { $0.category }).count
+        Set(currentPeriodExpenses.map { $0.categoryId }).count
     }
     
     private var expensesCount: Int {
@@ -369,6 +456,15 @@ struct AnalyticsView: View {
             return formatter.string(from: date)
         }
     }
+    
+    private func groupExpensesByCategory(_ expenses: [Expense]) -> [UserCategory: Double] {
+        var groups: [UserCategory: Double] = [:]
+        for expense in expenses {
+            let category = dataManager.resolveCategory(id: expense.categoryId)
+            groups[category, default: 0] += expense.amount
+        }
+        return groups
+    }
 }
 
 // MARK: - Supporting Views
@@ -381,7 +477,7 @@ struct CategoryBudgetRow: View {
         let calendar = Calendar.current
         let now = Date()
         return dataManager.expenses.filter { expense in
-            calendar.isDate(expense.date, equalTo: now, toGranularity: .month) && expense.category == budget.category
+            calendar.isDate(expense.date, equalTo: now, toGranularity: .month) && expense.categoryId == budget.categoryId
         }.reduce(0) { $0 + $1.amount }
     }
     
@@ -390,10 +486,15 @@ struct CategoryBudgetRow: View {
         return min(spentAmount / budget.amount, 1.0)
     }
     
+    private var categoryInfo: (name: String, icon: String) {
+        let category = dataManager.resolveCategory(id: budget.categoryId)
+        return (category.name, category.iconSystemName)
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label(budget.category.localizedName, systemImage: budget.category.icon)
+                Label(categoryInfo.name, systemImage: categoryInfo.icon)
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(.primary)

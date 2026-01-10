@@ -141,24 +141,17 @@ class DataImporter: ObservableObject {
                 for categoryName in foundCategories {
                     let normalized = categoryName.lowercased()
                     
-                    // Check if it matches an existing built-in ExpenseCategory
-                    let matchesExpenseCategory = ExpenseCategory.allCases.contains { $0.rawValue.lowercased() == normalized }
-                    
-                    if !matchesExpenseCategory {
-                        // Check if UserCategory already exists
-                        if let existingCategory = dataManager.userCategories.first(where: { $0.name.lowercased() == normalized }) {
-                            categoryMap[normalized] = existingCategory.id
-                            print("   Mapped '\(categoryName)' to existing user category")
-                        } else {
-                            // Create new UserCategory
-                            let newUserCategory = UserCategory(name: categoryName)
-                            dataManager.addUserCategory(newUserCategory)
-                            categoryMap[normalized] = newUserCategory.id
-                            print("   Created new user category for '\(categoryName)'")
-                        }
+                    // Always treat as UserCategory now.
+                    // Check if UserCategory already exists
+                    if let existingCategory = dataManager.userCategories.first(where: { $0.name.lowercased() == normalized }) {
+                        categoryMap[normalized] = existingCategory.id
+                        print("   Mapped '\(categoryName)' to existing user category")
                     } else {
-                        // It matches a built-in category, so we don't need a UserCategory ID
-                        // but we rely on ExpenseCategory enum
+                        // Create new UserCategory
+                        let newUserCategory = UserCategory(name: categoryName)
+                        dataManager.addUserCategory(newUserCategory)
+                        categoryMap[normalized] = newUserCategory.id
+                        print("   Created new user category for '\(categoryName)'")
                     }
                 }
                 semaphore.signal()
@@ -308,7 +301,6 @@ class DataImporter: ObservableObject {
         return .custom
     }
     
-
     
     // MARK: - Helper Methods
     
@@ -346,11 +338,11 @@ class DataImporter: ObservableObject {
         
         let date = parseDate(dateString) ?? Date()
         
-        // Parse category and find/assign userCategoryId
-        let (category, userCategoryId) = parseCategoryWithMap(categoryString, categoryMap: categoryMap)
+        // Parse category and find/assign categoryId
+        let categoryId = parseCategoryWithMap(categoryString, categoryMap: categoryMap)
         
         // Title is allowed to be empty now - will be flagged as problem expense
-        return Expense(title: title, amount: amount, category: category, userCategoryId: userCategoryId, date: date)
+        return Expense(title: title, amount: amount, categoryId: categoryId, date: date)
     }
     
     private func parseCustomRow(columns: [String], header: [String], categoryMap: [String: UUID]) throws -> Expense {
@@ -421,11 +413,11 @@ class DataImporter: ObservableObject {
             throw ImportError.invalidData("Amount must be greater than zero")
         }
         
-        // Parse category and find/assign userCategoryId
-        let (category, userCategoryId) = parseCategoryWithMap(categoryString, categoryMap: categoryMap)
+        // Parse category and find/assign categoryId
+        let categoryId = parseCategoryWithMap(categoryString, categoryMap: categoryMap)
         
         // Title is allowed to be empty now - will be flagged as problem expense
-        return Expense(title: title, amount: amount, category: category, userCategoryId: userCategoryId, date: date)
+        return Expense(title: title, amount: amount, categoryId: categoryId, date: date)
     }
     
     enum ImportError: Error, LocalizedError {
@@ -651,30 +643,26 @@ class DataImporter: ObservableObject {
         return nil
     }
     
-    private func parseCategoryWithMap(_ categoryString: String, categoryMap: [String: UUID]) -> (ExpenseCategory, UUID?) {
+    private func parseCategoryWithMap(_ categoryString: String, categoryMap: [String: UUID]) -> UUID {
         let normalized = categoryString.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         
         if normalized.isEmpty {
-            return (.other, nil)
+            // resolveCategory will return a default/fallback
+            return DataManager.shared.resolveCategory(id: UUID()).id
         }
         
         // Validation: If the category string parses as a valid date, it's likely a mapping error
         if parseDate(categoryString) != nil {
             print("⚠️ Warning: Category value '\(categoryString)' looks like a date. Ignoring to prevent miscategorization.")
-            return (.other, nil)
-        }
-        
-        // Check if it matches a built-in category
-        if let exactMatch = ExpenseCategory.allCases.first(where: { $0.rawValue.lowercased() == normalized }) {
-            return (exactMatch, nil)
+             return DataManager.shared.resolveCategory(id: UUID()).id
         }
         
         // Look up the UserCategory ID from the map
         if let id = categoryMap[normalized] {
-            return (.other, id)
+            return id
         }
         
-        print("⚠️ Warning: Category '\(categoryString)' (normalized: '\(normalized)') not found in map or built-in categories. Falling back to Other.")
-        return (.other, nil)
+        print("⚠️ Warning: Category '\(categoryString)' (normalized: '\(normalized)') not found in map. Falling back to General.")
+        return DataManager.shared.resolveCategory(id: UUID()).id
     }
 }

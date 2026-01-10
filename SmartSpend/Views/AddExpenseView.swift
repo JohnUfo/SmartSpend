@@ -6,13 +6,13 @@ struct AddExpenseView: View {
     
     @State private var title = ""
     @State private var amount = ""
-    @State private var selectedCategory: ExpenseCategory = .other
-    @State private var selectedUserCategory: UserCategory? = nil
+    @State private var selectedCategory: UserCategory?
     @State private var selectedDate = Date()
     @State private var showingSuggestions = false
-    @State private var categorySuggestions: [(category: ExpenseCategory, confidence: Double)] = []
+    @State private var categorySuggestions: [(category: UserCategory, confidence: Double)] = []
     @State private var suggestedPrice: Double?
     @State private var showingCategoryManagement = false
+    @State private var showingScanner = false
     
     // Recurring expense options
     @State private var isRecurring = false
@@ -20,7 +20,6 @@ struct AddExpenseView: View {
     @State private var hasEndDate = false
     @State private var endDate = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
     
-    private let mainCategories: [ExpenseCategory] = [.other]
     
     var body: some View {
         NavigationStack {
@@ -79,23 +78,9 @@ struct AddExpenseView: View {
                         Text("category".localized)
                         Spacer()
                         Menu {
-                            // All Categories together
-                            ForEach(mainCategories, id: \.self) { category in
-                                Button(action: {
-                                    selectedCategory = category
-                                    selectedUserCategory = nil
-                                }) {
-                                    Label {
-                                        Text(category.localizedName)
-                                    } icon: {
-                                        Image(systemName: category.icon)
-                                    }
-                                }
-                            }
-                            
                             ForEach(dataManager.userCategories) { userCategory in
                                 Button(action: {
-                                    selectedUserCategory = userCategory
+                                    selectedCategory = userCategory
                                 }) {
                                     Label {
                                         Text(userCategory.name)
@@ -113,16 +98,14 @@ struct AddExpenseView: View {
                             }
                         } label: {
                             HStack(spacing: 4) {
-                                if let userCat = selectedUserCategory {
+                                if let userCat = selectedCategory {
                                     Image(systemName: userCat.iconSystemName)
                                         .foregroundStyle(userCat.color)
                                     Text(userCat.name)
                                         .foregroundStyle(.primary)
                                 } else {
-                                    Image(systemName: selectedCategory.icon)
-                                        .foregroundStyle(selectedCategory.color)
-                                    Text(selectedCategory.localizedName)
-                                        .foregroundStyle(.primary)
+                                    Text("Select Category")
+                                        .foregroundStyle(.secondary)
                                 }
                                 Image(systemName: "chevron.up.chevron.down")
                                     .font(.caption)
@@ -183,16 +166,38 @@ struct AddExpenseView: View {
                 }
                 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("save".localized) {
-                        saveExpense()
+                    HStack(spacing: 16) {
+                        Button(action: { showingScanner = true }) {
+                            Image(systemName: "doc.text.viewfinder")
+                                .font(.headline)
+                        }
+                        
+                        Button("save".localized) {
+                            saveExpense()
+                        }
+                        .disabled(title.isEmpty || amount.isEmpty || getNumericValue(from: amount) == nil || selectedCategory == nil)
+                        .fontWeight(.semibold)
                     }
-                    .disabled(title.isEmpty || amount.isEmpty || getNumericValue(from: amount) == nil)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(title.isEmpty || amount.isEmpty || getNumericValue(from: amount) == nil ? Color.secondary : Color.accentColor)
+                }
+            }
+            .sheet(isPresented: $showingScanner) {
+                ScannerView { result in
+                    if let amountValue = result.amount {
+                        self.amount = formatNumberWithCommas(amountValue)
+                    }
+                    if let dateValue = result.date {
+                        self.selectedDate = dateValue
+                    }
+                    checkForSuggestions()
                 }
             }
             .sheet(isPresented: $showingCategoryManagement) {
                 CategoryManagementView()
+            }
+            .onAppear {
+                if selectedCategory == nil {
+                    selectedCategory = dataManager.userCategories.first
+                }
             }
         }
     }
@@ -233,8 +238,7 @@ struct AddExpenseView: View {
         let expense = Expense(
             title: title,
             amount: amountValue,
-            category: selectedCategory,
-            userCategoryId: selectedUserCategory?.id,
+            categoryId: selectedCategory?.id ?? DataManager.shared.resolveCategory(id: UUID()).id, // Fallback safe
             date: selectedDate
         )
         
@@ -245,7 +249,7 @@ struct AddExpenseView: View {
             let recurringExpense = RecurringExpense(
                 title: title,
                 amount: amountValue,
-                category: selectedCategory,
+                categoryId: selectedCategory?.id ?? DataManager.shared.resolveCategory(id: UUID()).id,
                 recurrenceType: selectedRecurrence,
                 startDate: selectedDate,
                 endDate: hasEndDate ? endDate : nil
@@ -285,14 +289,14 @@ struct AddExpenseView: View {
 }
 
 struct EnhancedSuggestionView: View {
-    let categorySuggestions: [(category: ExpenseCategory, confidence: Double)]
+    let categorySuggestions: [(category: UserCategory, confidence: Double)]
     let suggestedPrice: Double?
     let currency: Currency
-    let onCategorySelect: (ExpenseCategory) -> Void
+    let onCategorySelect: (UserCategory) -> Void
     let onPriceSelect: (Double) -> Void
     let onDismiss: () -> Void
     
-    @State private var selectedCategory: ExpenseCategory?
+    @State private var selectedCategory: UserCategory?
     @State private var selectedPrice: Double?
     
     var body: some View {
@@ -359,7 +363,7 @@ struct EnhancedSuggestionView: View {
         }
     }
     
-    private func categoryButton(for suggestion: (category: ExpenseCategory, confidence: Double)) -> some View {
+    private func categoryButton(for suggestion: (category: UserCategory, confidence: Double)) -> some View {
         let isSelected = selectedCategory == suggestion.category
         
         return Button {
@@ -367,7 +371,7 @@ struct EnhancedSuggestionView: View {
             onCategorySelect(suggestion.category)
         } label: {
             HStack {
-                Label(suggestion.category.rawValue, systemImage: suggestion.category.icon)
+                Label(suggestion.category.name, systemImage: suggestion.category.iconSystemName)
                     .font(.caption)
                     .foregroundStyle(isSelected ? .white : suggestion.category.color)
                 
@@ -457,7 +461,7 @@ struct EnhancedSuggestionView: View {
 
 struct SuggestionView: View {
     let price: Double
-    let category: ExpenseCategory
+    let category: UserCategory
     let currency: Currency
     let onAccept: () -> Void
     let onDismiss: () -> Void
@@ -490,7 +494,7 @@ struct SuggestionView: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(.primary)
                     
-                    Label(category.rawValue, systemImage: category.icon)
+                    Label(category.name, systemImage: category.iconSystemName)
                         .font(.caption)
                         .foregroundStyle(category.color)
                 }

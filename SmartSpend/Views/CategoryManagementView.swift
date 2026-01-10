@@ -66,27 +66,12 @@ struct CategoryManagementView: View {
                     // Your Custom Categories
                     if !dataManager.userCategories.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Your Categories")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .padding(.horizontal, 4)
-                            
                             ForEach(dataManager.userCategories) { category in
                                 customCategoryRow(category)
                             }
                         }
-                    }
-                    
-                    // Default Categories
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Default Categories")
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 4)
-                        
-                        ForEach([ExpenseCategory.other], id: \.self) { category in
-                            defaultCategoryRow(category)
-                        }
+                    } else {
+                        ContentUnavailableView("No Categories", systemImage: "tag.slash", description: Text("Create a category to get started"))
                     }
                 }
                 .padding(.horizontal)
@@ -156,34 +141,6 @@ struct CategoryManagementView: View {
         }
         .padding(12)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-    }
-    
-    // MARK: - Default Category Row
-    
-    private func defaultCategoryRow(_ category: ExpenseCategory) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: category.icon)
-                .font(.title2)
-                .foregroundStyle(category.color)
-                .frame(width: 44, height: 44)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(category.localizedName)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Text("System category")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Spacer()
-            
-            Image(systemName: "lock.fill")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
     }
     
     // MARK: - Category Editor Sheet
@@ -350,16 +307,13 @@ struct CategoryManagementView: View {
             return
         }
         
-        if let existingCategory = editingCategory {
-            // Update existing category by removing old and adding updated
-            dataManager.deleteUserCategory(existingCategory)
-            let updatedCategory = UserCategory(
-                name: trimmed,
-                iconSystemName: iconSystemName,
-                colorName: selectedColorName
-            )
-            // Preserve the original creation date by creating a new one with same data
-            dataManager.addUserCategory(updatedCategory)
+        if var updatedCategory = editingCategory {
+            // Update existing category properties while keeping the SAME ID
+            updatedCategory.name = trimmed
+            updatedCategory.iconSystemName = iconSystemName
+            updatedCategory.colorName = selectedColorName
+            
+            dataManager.updateUserCategory(updatedCategory)
         } else {
             // Create new category
             let newCategory = UserCategory(

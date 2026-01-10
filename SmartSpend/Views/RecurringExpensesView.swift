@@ -274,11 +274,8 @@ struct RecurringExpenseRowView: View {
     
     // Resolve user category if present
     private var categoryDisplayInfo: (name: String, icon: String, color: Color) {
-        if let userCategoryId = recurringExpense.userCategoryId,
-           let userCategory = dataManager.userCategories.first(where: { $0.id == userCategoryId }) {
-            return (userCategory.name, userCategory.iconSystemName, userCategory.color)
-        }
-        return (recurringExpense.category.localizedName, recurringExpense.category.icon, recurringExpense.category.color)
+        let category = dataManager.resolveCategory(id: recurringExpense.categoryId)
+        return (category.name, category.iconSystemName, category.color)
     }
     
     var body: some View {

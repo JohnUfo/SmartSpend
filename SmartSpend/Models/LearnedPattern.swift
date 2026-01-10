@@ -2,23 +2,23 @@ import Foundation
 
 struct PriceCategoryCombination: Codable, Equatable {
     let price: Double
-    let category: ExpenseCategory
+    let categoryId: UUID
     var frequency: Int
     
-    init(price: Double, category: ExpenseCategory, frequency: Int = 1) {
+    init(price: Double, categoryId: UUID, frequency: Int = 1) {
         self.price = price
-        self.category = category
+        self.categoryId = categoryId
         self.frequency = frequency
     }
 }
 
 struct CategoryFrequency: Codable, Equatable {
-    let category: ExpenseCategory
+    let categoryId: UUID
     var frequency: Int
     var lastUsed: Date
     
-    init(category: ExpenseCategory, frequency: Int = 1) {
-        self.category = category
+    init(categoryId: UUID, frequency: Int = 1) {
+        self.categoryId = categoryId
         self.frequency = frequency
         self.lastUsed = Date()
     }
@@ -32,11 +32,11 @@ struct LearnedPattern: Identifiable, Codable {
     var lastUsed: Date
     let keywords: [String] // Extracted keywords for better matching
     
-    init(title: String, price: Double, category: ExpenseCategory) {
+    init(title: String, price: Double, categoryId: UUID) {
         self.id = UUID()
         self.title = title
-        self.combinations = [PriceCategoryCombination(price: price, category: category, frequency: 1)]
-        self.categoryFrequencies = [CategoryFrequency(category: category, frequency: 1)]
+        self.combinations = [PriceCategoryCombination(price: price, categoryId: categoryId, frequency: 1)]
+        self.categoryFrequencies = [CategoryFrequency(categoryId: categoryId, frequency: 1)]
         self.lastUsed = Date()
         self.keywords = Self.extractKeywords(from: title)
     }
@@ -57,8 +57,8 @@ struct LearnedPattern: Identifiable, Codable {
     }
     
     // Get the most used category
-    var mostUsedCategory: ExpenseCategory {
-        return categoryFrequencies.max(by: { $0.frequency < $1.frequency })?.category ?? .other
+    var mostUsedCategoryId: UUID? {
+        return categoryFrequencies.max(by: { $0.frequency < $1.frequency })?.categoryId
     }
     
     // Get category confidence score (0.0 to 1.0)
@@ -70,28 +70,28 @@ struct LearnedPattern: Identifiable, Codable {
     }
     
     // Get top 3 most likely categories
-    var topCategories: [ExpenseCategory] {
+    var topCategoryIds: [UUID] {
         return categoryFrequencies
             .sorted { $0.frequency > $1.frequency }
             .prefix(3)
-            .map { $0.category }
+            .map { $0.categoryId }
     }
     
     // Add or update a price-category combination
-    mutating func addCombination(price: Double, category: ExpenseCategory) {
+    mutating func addCombination(price: Double, categoryId: UUID) {
         // Update price-category combination
-        if let index = combinations.firstIndex(where: { $0.price == price && $0.category == category }) {
+        if let index = combinations.firstIndex(where: { $0.price == price && $0.categoryId == categoryId }) {
             combinations[index].frequency += 1
         } else {
-            combinations.append(PriceCategoryCombination(price: price, category: category, frequency: 1))
+            combinations.append(PriceCategoryCombination(price: price, categoryId: categoryId, frequency: 1))
         }
         
         // Update category frequency
-        if let index = categoryFrequencies.firstIndex(where: { $0.category == category }) {
+        if let index = categoryFrequencies.firstIndex(where: { $0.categoryId == categoryId }) {
             categoryFrequencies[index].frequency += 1
             categoryFrequencies[index].lastUsed = Date()
         } else {
-            categoryFrequencies.append(CategoryFrequency(category: category, frequency: 1))
+            categoryFrequencies.append(CategoryFrequency(categoryId: categoryId, frequency: 1))
         }
         
         // Update last used date
