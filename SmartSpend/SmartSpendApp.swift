@@ -6,14 +6,9 @@
 //
 
 import SwiftUI
-import FirebaseCore
 
 @main
 struct SmartSpendApp: App {
-    init() {
-        FirebaseApp.configure()
-    }
-    
     var body: some Scene {
         WindowGroup {
             ContentView()

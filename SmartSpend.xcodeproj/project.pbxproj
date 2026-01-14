@@ -6,10 +6,6 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		9E913BCC2F157FB7008D4107 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 9E913BCB2F157FB7008D4107 /* FirebaseAnalytics */; };
-/* End PBXBuildFile section */
-
 /* Begin PBXContainerItemProxy section */
 		9E6DB8702E59C60A00476BE0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -72,7 +68,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9E913BCC2F157FB7008D4107 /* FirebaseAnalytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -140,7 +135,6 @@
 			);
 			name = SmartSpend;
 			packageProductDependencies = (
-				9E913BCB2F157FB7008D4107 /* FirebaseAnalytics */,
 			);
 			productName = SmartSpend;
 			productReference = 9E6DB8622E59C60700476BE0 /* SmartSpend.app */;
@@ -226,7 +220,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9E95B4102ECC8CE4003E1678 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */,
-				9E913BCA2F157FB7008D4107 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9E6DB8632E59C60700476BE0 /* Products */;
@@ -599,14 +592,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		9E913BCA2F157FB7008D4107 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 12.7.0;
-			};
-		};
 		9E95B4102ECC8CE4003E1678 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/apple/swift-async-algorithms.git";
@@ -616,14 +601,6 @@
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		9E913BCB2F157FB7008D4107 /* FirebaseAnalytics */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9E913BCA2F157FB7008D4107 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAnalytics;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9E6DB85A2E59C60700476BE0 /* Project object */;
 }
